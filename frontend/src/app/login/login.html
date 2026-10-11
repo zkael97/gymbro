@@ -1,0 +1,31 @@
+<div class="login-container">
+  <div class="login-card">
+    <div class="logo">GymBro</div>
+    
+    <div class="error-message" *ngIf="errorMessage">
+      {{ errorMessage }}
+    </div>
+
+    <form (ngSubmit)="onSubmit()">
+      <div class="input-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" [(ngModel)]="username" required>
+      </div>
+
+      <div class="input-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" [(ngModel)]="password" required>
+      </div>
+
+      <button type="submit" class="login-btn">Login</button>
+    </form>
+
+    <div class="footer-link">
+      <a routerLink="/forgot-password">Forgot password?</a>
+    </div>
+
+    <div class="footer-link">
+      Don't have an account? <a routerLink="/register">Register here</a>
+    </div>
+  </div>
+</div>

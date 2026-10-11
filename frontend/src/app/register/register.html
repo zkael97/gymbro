@@ -1,0 +1,33 @@
+<div class="register-container">
+  <div class="register-card">
+    <div class="logo">GymBro</div>
+    <div class="subtitle">Create an Account</div>
+    
+    <div class="error-message" *ngIf="errorMessage">
+      {{ errorMessage }}
+    </div>
+
+    <form (ngSubmit)="onSubmit()">
+      <div class="input-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" [(ngModel)]="username" required>
+      </div>
+
+      <div class="input-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" [(ngModel)]="password" required>
+      </div>
+
+      <div class="input-group">
+        <label for="confirmPassword">Confirm Password</label>
+        <input type="password" id="confirmPassword" name="confirmPassword" [(ngModel)]="confirmPassword" required>
+      </div>
+
+      <button type="submit" class="register-btn">Register</button>
+    </form>
+    
+    <div class="footer-link">
+      Already have an account? <a routerLink="/login">Login here</a>
+    </div>
+  </div>
+</div>

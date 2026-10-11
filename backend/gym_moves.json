@@ -1,0 +1,34 @@
+[
+  {
+    "id": "4",
+    "title": "test",
+    "description": "test",
+    "type": "upper",
+    "category": "Arms",
+    "createdDate": "2026-10-12T01:18:35.357853461+07:00"
+  },
+  {
+    "id": "1",
+    "title": "Barbell Bench Press",
+    "description": "Compound chest movement targeting pectoralis major, anterior deltoids, and triceps.",
+    "type": "upper",
+    "category": "Chest",
+    "createdDate": "2026-10-12T01:17:28.50344762+07:00"
+  },
+  {
+    "id": "2",
+    "title": "Deadlift",
+    "description": "Full-body powerhouse movement engaging posterior chain, glutes, and lower back.",
+    "type": "lower",
+    "category": "hamstring",
+    "createdDate": "2026-10-12T01:17:28.503447691+07:00"
+  },
+  {
+    "id": "3",
+    "title": "Barbell Back Squat",
+    "description": "Fundamental lower body exercise for quadriceps, hamstrings, and core stability.",
+    "type": "lower",
+    "category": "quadriceps",
+    "createdDate": "2026-10-12T01:17:28.503447731+07:00"
+  }
+]

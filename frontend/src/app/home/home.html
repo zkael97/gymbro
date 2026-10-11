@@ -1,0 +1,319 @@
+<div class="app-shell">
+  <!-- Mobile Sidebar Overlay Backdrop -->
+  <div class="sidebar-backdrop" *ngIf="isMobileSidebarOpen()" (click)="closeMobileSidebar()"></div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" [class.mobile-open]="isMobileSidebarOpen()">
+    <div class="sidebar-logo">
+      <span class="logo-icon">💪</span>
+      <span class="logo-text">GymBro</span>
+      <button type="button" class="sidebar-close-btn" (click)="closeMobileSidebar()" aria-label="Close menu">✕</button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="nav-item" [class.active]="activeMenu === 'dashboard'" (click)="setActive('dashboard')">
+        <span class="nav-icon">⊞</span>
+        <span class="nav-label">Dashboard</span>
+      </a>
+
+      <a class="nav-item" [class.active]="activeMenu === 'tracker'" (click)="setActive('tracker')">
+        <span class="nav-icon">📈</span>
+        <span class="nav-label">Tracker</span>
+      </a>
+
+      <!-- Back Office Menu Group -->
+      <div class="nav-group">
+        <button type="button" class="nav-item nav-item-dropdown" [class.open]="isBackOfficeOpen"
+          [class.active]="activeMenu.startsWith('backoffice')" (click)="toggleBackOffice()">
+          <span class="nav-icon">🏢</span>
+          <span class="nav-label">Back Office</span>
+          <span class="chevron" [class.rotated]="isBackOfficeOpen">▾</span>
+        </button>
+
+        <div class="submenu" *ngIf="isBackOfficeOpen">
+          <a class="submenu-item" [class.active]="activeMenu === 'backoffice-gym-move'"
+            (click)="setActive('backoffice-gym-move')">
+            <span class="submenu-icon">🏋️‍♂️</span>
+            <span class="submenu-label">Gym Move</span>
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="sign-out-btn" (click)="signOut()">
+        <span class="nav-icon">→</span>
+        <span class="nav-label">Sign Out</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <button type="button" class="hamburger-btn" (click)="toggleMobileSidebar()" aria-label="Toggle Navigation">
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+        </button>
+        <span class="mobile-brand">GymBro</span>
+      </div>
+
+      <div class="user-info">
+        <div class="avatar">{{ username?.charAt(0)?.toUpperCase() }}</div>
+        <span class="username-display">{{ username }}</span>
+      </div>
+    </div>
+
+    <div class="content-body">
+      <div class="welcome-section">
+        <h1 class="welcome-title">Welcome back, <span class="highlight">{{ username }}</span> 👋</h1>
+        <p class="welcome-sub">Track your gains and keep pushing forward.</p>
+      </div>
+
+      <!-- Dashboard cards placeholder -->
+      <div class="stats-grid" *ngIf="activeMenu === 'dashboard'">
+        <div class="stat-card">
+          <div class="stat-icon">🏋️</div>
+          <div class="stat-label">Total Workouts</div>
+          <div class="stat-value">{{ workoutLogs().length }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🔥</div>
+          <div class="stat-label">Total Days Tracked</div>
+          <div class="stat-value">{{ groupedWorkoutLogs.length }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⚡</div>
+          <div class="stat-label">Available Moves</div>
+          <div class="stat-value">{{ gymMoves().length }}</div>
+        </div>
+      </div>
+
+      <!-- TRACKER VIEW -->
+      <div class="page-container" *ngIf="activeMenu === 'tracker'">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Workout Tracker</h2>
+            <p class="page-subtitle">Pantau transformasi dan histori latihan harianmu di sini.</p>
+          </div>
+          <button class="action-btn" (click)="openAddLogModal()">+ Add Move</button>
+        </div>
+
+        <!-- Empty State Tracker -->
+        <div class="empty-state" *ngIf="groupedWorkoutLogs.length === 0">
+          <div class="empty-icon">📈</div>
+          <p class="empty-text">Belum ada catatan latihan. Klik "+ Add Move" untuk mulai mencatat gerakan hari ini!</p>
+        </div>
+
+        <!-- Date Grouped History Timeline -->
+        <div class="tracker-timeline" *ngIf="groupedWorkoutLogs.length > 0">
+          <div class="date-group-card" *ngFor="let group of groupedWorkoutLogs">
+            <div class="date-group-header">
+              <div class="date-title-wrap">
+                <span class="calendar-icon">📅</span>
+                <span class="date-group-title">{{ group.formattedDate }}</span>
+              </div>
+              <span class="total-moves-badge">{{ group.logs.length }} Gerakan</span>
+            </div>
+
+            <div class="workout-items-grid">
+              <div class="workout-item-card" *ngFor="let log of group.logs">
+                <div class="workout-item-main">
+                  <div class="item-icon-circle">🏋️</div>
+                  <div>
+                    <h4 class="workout-move-title">{{ log.moveTitle }}</h4>
+                    <span class="workout-time" *ngIf="log.createdDate">Dicatat: {{ log.createdDate | date:'shortTime'
+                      }}</span>
+                  </div>
+                </div>
+
+                <div class="workout-metrics">
+                  <div class="metric-pill weight">
+                    <span class="metric-label">Beban</span>
+                    <span class="metric-val">{{ log.weight }} kg</span>
+                  </div>
+                  <div class="metric-pill reps">
+                    <span class="metric-label">Repetisi</span>
+                    <span class="metric-val">{{ log.reps }} reps</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Back Office: Gym Move View -->
+      <div class="page-container" *ngIf="activeMenu === 'backoffice-gym-move'">
+        <div class="page-header">
+          <div>
+            <h2 class="page-title">Gym Move Management</h2>
+            <p class="page-subtitle">Manage exercises, workout movements, and training routines.</p>
+          </div>
+          <button class="action-btn" (click)="openAddModal()">+ Add Gym Move</button>
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state" *ngIf="gymMoves().length === 0">
+          <div class="empty-icon">🏋️</div>
+          <p class="empty-text">No gym moves found. Click "+ Add Gym Move" to create one.</p>
+        </div>
+
+        <!-- Dynamic Gym Move Cards -->
+        <div class="gym-move-grid" *ngIf="gymMoves().length > 0">
+          <div class="move-card" *ngFor="let move of gymMoves()">
+            <div class="move-tags">
+              <span class="type-pill" [class.upper]="move.type === 'upper'" [class.lower]="move.type === 'lower'">
+                {{ move.type }}
+              </span>
+              <span class="category-pill">
+                {{ move.category }}
+              </span>
+            </div>
+            <div class="move-title">{{ move.title }}</div>
+            <p class="move-desc" *ngIf="move.description">{{ move.description }}</p>
+            <div class="move-meta">
+              <span>Type: {{ move.type | titlecase }}</span>
+              <span>Category: {{ move.category }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Modal Add Move to Tracker (Workout Log) -->
+<div class="modal-backdrop" *ngIf="showAddLogModal()" (click)="closeAddLogModal()">
+  <div class="modal-card" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3 class="modal-title">Add Move to Tracker</h3>
+      <button class="close-btn" (click)="closeAddLogModal()">✕</button>
+    </div>
+
+    <div class="error-message" *ngIf="addLogError">
+      {{ addLogError }}
+    </div>
+
+    <form (submit)="$event.preventDefault()">
+      <!-- Pilih Gerakan (dari Gym Moves yang tersimpan) -->
+      <div class="input-group">
+        <label for="logMoveId">Pilih Gerakan</label>
+        <select id="logMoveId" name="logMoveId" [(ngModel)]="logMoveId" required>
+          <option value="" disabled>Pilih dari gerakan yang tersimpan</option>
+          <option *ngFor="let move of gymMoves()" [value]="move.id">
+            {{ move.title }} ({{ move.type | titlecase }} - {{ move.category }})
+          </option>
+        </select>
+        <small class="helper-text" *ngIf="gymMoves().length === 0">
+          Belum ada gerakan! Tambahkan gerakan di menu Back Office > Gym Move terlebih dahulu.
+        </small>
+      </div>
+
+      <!-- Beban (kg) -->
+      <div class="input-group">
+        <label for="logWeight">Beban (kg)</label>
+        <input type="number" id="logWeight" name="logWeight" [(ngModel)]="logWeight"
+          placeholder="e.g. 60 (kosongkan jika tanpa beban / bodyweight)" min="0" step="0.5">
+      </div>
+
+      <!-- Jumlah Repetisi -->
+      <div class="input-group">
+        <label for="logReps">Jumlah Repetisi</label>
+        <input type="number" id="logReps" name="logReps" [(ngModel)]="logReps" placeholder="Jumlah  Repetisi" min="1"
+          required>
+      </div>
+
+      <!-- Tanggal Latihan -->
+      <div class="input-group">
+        <label for="logDate">Tanggal</label>
+        <input type="date" id="logDate" name="logDate" [(ngModel)]="logDate" required>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="cancel-btn" (click)="closeAddLogModal()" [disabled]="isSubmittingLog()">
+          Cancel
+        </button>
+        <button type="button" class="save-btn" (click)="saveWorkoutLog()"
+          [disabled]="isSubmittingLog() || gymMoves().length === 0">
+          {{ isSubmittingLog() ? 'Saving...' : 'Catat Gerakan' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Add Gym Move -->
+<div class="modal-backdrop" *ngIf="showAddModal()" (click)="closeAddModal()">
+  <div class="modal-card" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3 class="modal-title">Add Gym Move</h3>
+      <button class="close-btn" (click)="closeAddModal()">✕</button>
+    </div>
+
+    <div class="error-message" *ngIf="addError">
+      {{ addError }}
+    </div>
+
+    <form (submit)="$event.preventDefault()">
+      <!-- Title -->
+      <div class="input-group">
+        <label for="moveTitle">Title</label>
+        <input type="text" id="moveTitle" name="moveTitle" [(ngModel)]="moveTitle"
+          placeholder="e.g. Incline Dumbbell Press" required>
+      </div>
+
+      <!-- Description (free text) -->
+      <div class="input-group">
+        <label for="moveDescription">Description</label>
+        <textarea id="moveDescription" name="moveDescription" [(ngModel)]="moveDescription"
+          placeholder="Enter exercise description, targeted muscles, or cues (optional)" rows="3"></textarea>
+      </div>
+
+      <!-- Type (upper / lower) -->
+      <div class="input-group">
+        <label for="moveType">Type</label>
+        <select id="moveType" name="moveType" [(ngModel)]="moveType" (ngModelChange)="onTypeChange()" required>
+          <option value="" disabled>Select Type</option>
+          <option value="upper">Upper</option>
+          <option value="lower">Lower</option>
+        </select>
+      </div>
+
+      <!-- Category (conditional options based on type) -->
+      <div class="input-group">
+        <label for="moveCategory">Category</label>
+        <select id="moveCategory" name="moveCategory" [(ngModel)]="moveCategory" [disabled]="!moveType" required>
+          <option value="" disabled>{{ moveType ? 'Select Category' : 'Select Type first' }}</option>
+          <option *ngFor="let cat of availableCategories" [value]="cat">
+            {{ cat }}
+          </option>
+        </select>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="cancel-btn" (click)="closeAddModal()" [disabled]="isSubmittingMove()">
+          Cancel
+        </button>
+        <button type="button" class="save-btn" (click)="saveGymMove()" [disabled]="isSubmittingMove()">
+          {{ isSubmittingMove() ? 'Saving...' : 'Save Gym Move' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Toast Alert Notification (Floating Top-Right Alert) -->
+<div class="toast-alert" *ngIf="showAlertNotification()" [class.toast-success]="alertType() === 'success'"
+  [class.toast-error]="alertType() === 'error'">
+  <div class="toast-content">
+    <span class="toast-icon" *ngIf="alertType() === 'success'">✅</span>
+    <span class="toast-icon" *ngIf="alertType() === 'error'">⚠️</span>
+    <span class="toast-message">{{ alertMessage() }}</span>
+  </div>
+  <button type="button" class="toast-close-btn" (click)="closeAlert()" aria-label="Close alert">
+    ✕
+  </button>
+</div>
