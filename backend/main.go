@@ -1,36 +1,47 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"sync"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 )
 
-type User struct {
-	ID          string    `json:"id"`
-	Username    string    `json:"username"`
-	Password    string    `json:"password"`
-	CreatedDate time.Time `json:"createdDate"`
-	LastLogin   time.Time `json:"lastLogin"`
+// ─── DB Pool ────────────────────────────────────────────────────────────────
+
+var db *pgxpool.Pool
+
+func initDB() {
+	// Load .env file if present (ignored if not found)
+	if err := godotenv.Load(); err != nil {
+		log.Println("[INFO] .env file not found, reading env vars from system")
+	}
+
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://gymbro_user:gymbro_pass@localhost:5432/gymbro?sslmode=disable"
+	}
+
+	var err error
+	db, err = pgxpool.New(context.Background(), dsn)
+	if err != nil {
+		log.Fatalf("Unable to create database pool: %v\n", err)
+	}
+
+	if err = db.Ping(context.Background()); err != nil {
+		log.Fatalf("Database ping failed: %v\n", err)
+	}
+
+	log.Println("Connected to PostgreSQL ✓")
 }
 
-type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-type LoginResponse struct {
-	Token   string `json:"token,omitempty"`
-	Message string `json:"message"`
-	User    *User  `json:"user,omitempty"`
-}
-
-var usersDB = make(map[string]User)
-var nextID = 1
+// ─── CORS Middleware ────────────────────────────────────────────────────────
 
 func enableCORS(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +58,19 @@ func enableCORS(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// ─── AUTH ───────────────────────────────────────────────────────────────────
+
+type LoginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type LoginResponse struct {
+	Token   string      `json:"token,omitempty"`
+	Message string      `json:"message"`
+	User    interface{} `json:"user,omitempty"`
+}
+
 func registerHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -61,28 +85,35 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	if _, exists := usersDB[req.Username]; exists {
-		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(LoginResponse{
-			Message: "Username already exists",
-		})
+	if req.Username == "" || req.Password == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(LoginResponse{Message: "Username and password are required"})
 		return
 	}
 
-	newUser := User{
-		ID:          fmt.Sprintf("%d", nextID),
-		Username:    req.Username,
-		Password:    req.Password,
-		CreatedDate: time.Now(),
-	}
-	nextID++
+	var id int
+	err := db.QueryRow(context.Background(),
+		`INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id`,
+		req.Username, req.Password,
+	).Scan(&id)
 
-	usersDB[req.Username] = newUser
+	if err != nil {
+		// Check for unique violation (username already exists)
+		if isPgUniqueViolation(err) {
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(LoginResponse{Message: "Username already exists"})
+			return
+		}
+		log.Printf("Register error: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(LoginResponse{Message: "Internal server error"})
+		return
+	}
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(LoginResponse{
 		Message: "Registration successful",
-		User:    &newUser,
+		User:    map[string]interface{}{"id": id, "username": req.Username},
 	})
 }
 
@@ -100,23 +131,28 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	user, exists := usersDB[req.Username]
-	if exists && user.Password == req.Password {
-		user.LastLogin = time.Now()
-		usersDB[req.Username] = user
+	var id int
+	var storedPassword string
+	err := db.QueryRow(context.Background(),
+		`SELECT id, password FROM users WHERE username = $1`,
+		req.Username,
+	).Scan(&id, &storedPassword)
 
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(LoginResponse{
-			Token:   "dummy-jwt-token-12345",
-			Message: "Login successful",
-			User:    &user,
-		})
+	if err != nil || storedPassword != req.Password {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(LoginResponse{Message: "Invalid username or password"})
 		return
 	}
 
-	w.WriteHeader(http.StatusUnauthorized)
+	// Update last_login
+	db.Exec(context.Background(),
+		`UPDATE users SET last_login = NOW() WHERE id = $1`, id)
+
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(LoginResponse{
-		Message: "Invalid username or password",
+		Token:   "dummy-jwt-token-12345",
+		Message: "Login successful",
+		User:    map[string]interface{}{"id": id, "username": req.Username},
 	})
 }
 
@@ -125,94 +161,8 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "Logout successful",
-	})
-}
-
-type ForgotPasswordRequest struct {
-	Username    string `json:"username"`
-	NewPassword string `json:"newPassword"`
-}
-
-type GymMove struct {
-	ID          string    `json:"id"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	Type        string    `json:"type"`     // "upper" or "lower"
-	Category    string    `json:"category"` // upper: Chest, back, shoulders, arms, others; lower: quadriceps, hamstring, glutes, calves, others
-	CreatedDate time.Time `json:"createdDate"`
-}
-
-var (
-	gymMovesMutex sync.Mutex
-	gymMovesFile  = "gym_moves.json"
-	gymMovesDB    []GymMove
-	nextGymMoveID = 1
-)
-
-var defaultGymMoves = []GymMove{
-	{
-		ID:          "1",
-		Title:       "Barbell Bench Press",
-		Description: "Compound chest movement targeting pectoralis major, anterior deltoids, and triceps.",
-		Type:        "upper",
-		Category:    "Chest",
-		CreatedDate: time.Now(),
-	},
-	{
-		ID:          "2",
-		Title:       "Deadlift",
-		Description: "Full-body powerhouse movement engaging posterior chain, glutes, and lower back.",
-		Type:        "lower",
-		Category:    "hamstring",
-		CreatedDate: time.Now(),
-	},
-	{
-		ID:          "3",
-		Title:       "Barbell Back Squat",
-		Description: "Fundamental lower body exercise for quadriceps, hamstrings, and core stability.",
-		Type:        "lower",
-		Category:    "quadriceps",
-		CreatedDate: time.Now(),
-	},
-}
-
-func initGymMovesStorage() {
-	gymMovesMutex.Lock()
-	defer gymMovesMutex.Unlock()
-
-	data, err := os.ReadFile(gymMovesFile)
-	if err == nil && len(data) > 0 {
-		var moves []GymMove
-		if err := json.Unmarshal(data, &moves); err == nil && len(moves) > 0 {
-			gymMovesDB = moves
-			maxID := 0
-			for _, m := range moves {
-				var idInt int
-				fmt.Sscanf(m.ID, "%d", &idInt)
-				if idInt > maxID {
-					maxID = idInt
-				}
-			}
-			nextGymMoveID = maxID + 1
-			return
-		}
-	}
-
-	gymMovesDB = defaultGymMoves
-	nextGymMoveID = 4
-	saveGymMovesToFile()
-}
-
-func saveGymMovesToFile() {
-	data, err := json.MarshalIndent(gymMovesDB, "", "  ")
-	if err == nil {
-		os.WriteFile(gymMovesFile, data, 0644)
-	}
+	json.NewEncoder(w).Encode(map[string]string{"message": "Logout successful"})
 }
 
 func forgotPasswordHandler(w http.ResponseWriter, r *http.Request) {
@@ -221,7 +171,10 @@ func forgotPasswordHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req ForgotPasswordRequest
+	var req struct {
+		Username    string `json:"username"`
+		NewPassword string `json:"newPassword"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -231,35 +184,56 @@ func forgotPasswordHandler(w http.ResponseWriter, r *http.Request) {
 
 	if req.Username == "" || req.NewPassword == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(LoginResponse{
-			Message: "Username and new password are required",
-		})
+		json.NewEncoder(w).Encode(LoginResponse{Message: "Username and new password are required"})
 		return
 	}
 
-	user, exists := usersDB[req.Username]
-	if !exists {
+	tag, err := db.Exec(context.Background(),
+		`UPDATE users SET password = $1 WHERE username = $2`,
+		req.NewPassword, req.Username,
+	)
+	if err != nil || tag.RowsAffected() == 0 {
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(LoginResponse{
-			Message: "Username not found",
-		})
+		json.NewEncoder(w).Encode(LoginResponse{Message: "Username not found"})
 		return
 	}
 
-	user.Password = req.NewPassword
-	usersDB[req.Username] = user
+	json.NewEncoder(w).Encode(LoginResponse{Message: "Password has been successfully updated"})
+}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(LoginResponse{
-		Message: "Password has been successfully updated",
-	})
+// ─── GYM MOVES ──────────────────────────────────────────────────────────────
+
+type GymMove struct {
+	ID          int       `json:"id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Type        string    `json:"type"`
+	Category    string    `json:"category"`
+	CreatedDate time.Time `json:"createdDate"`
 }
 
 func gymMovesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if r.Method == http.MethodGet {
-		json.NewEncoder(w).Encode(gymMovesDB)
+		rows, err := db.Query(context.Background(),
+			`SELECT id, title, COALESCE(description,''), type, category, created_at FROM gym_moves ORDER BY id DESC`)
+		if err != nil {
+			log.Printf("gymMovesHandler GET error: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		moves := []GymMove{}
+		for rows.Next() {
+			var m GymMove
+			if err := rows.Scan(&m.ID, &m.Title, &m.Description, &m.Type, &m.Category, &m.CreatedDate); err != nil {
+				continue
+			}
+			moves = append(moves, m)
+		}
+		json.NewEncoder(w).Encode(moves)
 		return
 	}
 
@@ -270,7 +244,6 @@ func gymMovesHandler(w http.ResponseWriter, r *http.Request) {
 			Type        string `json:"type"`
 			Category    string `json:"category"`
 		}
-
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
@@ -278,98 +251,97 @@ func gymMovesHandler(w http.ResponseWriter, r *http.Request) {
 
 		if req.Title == "" || req.Type == "" || req.Category == "" {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"message": "Title, type, and category are required",
-			})
+			json.NewEncoder(w).Encode(map[string]string{"message": "Title, type, and category are required"})
 			return
 		}
 
-		newMove := GymMove{
-			ID:          fmt.Sprintf("%d", nextGymMoveID),
-			Title:       req.Title,
-			Description: req.Description,
-			Type:        req.Type,
-			Category:    req.Category,
-			CreatedDate: time.Now(),
-		}
-		nextGymMoveID++
+		var m GymMove
+		err := db.QueryRow(context.Background(),
+			`INSERT INTO gym_moves (title, description, type, category)
+			 VALUES ($1, $2, $3, $4)
+			 RETURNING id, title, COALESCE(description,''), type, category, created_at`,
+			req.Title, req.Description, req.Type, req.Category,
+		).Scan(&m.ID, &m.Title, &m.Description, &m.Type, &m.Category, &m.CreatedDate)
 
-		gymMovesMutex.Lock()
-		gymMovesDB = append([]GymMove{newMove}, gymMovesDB...)
-		saveGymMovesToFile()
-		gymMovesMutex.Unlock()
+		if err != nil {
+			log.Printf("gymMovesHandler POST error: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
 
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(newMove)
+		json.NewEncoder(w).Encode(m)
 		return
 	}
 
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
+// ─── WORKOUT LOGS ────────────────────────────────────────────────────────────
+
 type WorkoutLog struct {
-	ID          string    `json:"id"`
+	ID          int       `json:"id"`
 	Username    string    `json:"username"`
-	MoveID      string    `json:"moveId"`
+	MoveID      *int      `json:"moveId"`
 	MoveTitle   string    `json:"moveTitle"`
-	Weight      float64   `json:"weight"` // in kg
+	Weight      float64   `json:"weight"`
 	Reps        int       `json:"reps"`
-	Date        string    `json:"date"` // YYYY-MM-DD
+	Date        string    `json:"date"`
 	CreatedDate time.Time `json:"createdDate"`
 }
-
-var workoutLogsDB = []WorkoutLog{
-	{
-		ID:          "1",
-		Username:    "admin",
-		MoveID:      "1",
-		MoveTitle:   "Barbell Bench Press",
-		Weight:      70,
-		Reps:        8,
-		Date:        time.Now().Format("2006-01-02"),
-		CreatedDate: time.Now().Add(-2 * time.Hour),
-	},
-	{
-		ID:          "2",
-		Username:    "admin",
-		MoveID:      "3",
-		MoveTitle:   "Barbell Back Squat",
-		Weight:      90,
-		Reps:        6,
-		Date:        time.Now().AddDate(0, 0, -1).Format("2006-01-02"),
-		CreatedDate: time.Now().AddDate(0, 0, -1),
-	},
-}
-var nextWorkoutLogID = 3
 
 func workoutLogsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if r.Method == http.MethodGet {
 		usernameQuery := r.URL.Query().Get("username")
-		var result []WorkoutLog
-		for _, log := range workoutLogsDB {
-			if usernameQuery == "" || log.Username == usernameQuery {
-				result = append(result, log)
+
+		var rows interface {
+			Next() bool
+			Scan(...interface{}) error
+			Close()
+		}
+		var err error
+
+		if usernameQuery != "" {
+			rows, err = db.Query(context.Background(),
+				`SELECT id, username, move_id, move_title, weight, reps, date::text, created_at
+				 FROM workout_logs WHERE username = $1 ORDER BY date DESC, id DESC`,
+				usernameQuery)
+		} else {
+			rows, err = db.Query(context.Background(),
+				`SELECT id, username, move_id, move_title, weight, reps, date::text, created_at
+				 FROM workout_logs ORDER BY date DESC, id DESC`)
+		}
+
+		if err != nil {
+			log.Printf("workoutLogsHandler GET error: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		logs := []WorkoutLog{}
+		for rows.Next() {
+			var l WorkoutLog
+			if err := rows.Scan(&l.ID, &l.Username, &l.MoveID, &l.MoveTitle, &l.Weight, &l.Reps, &l.Date, &l.CreatedDate); err != nil {
+				continue
 			}
+			logs = append(logs, l)
 		}
-		if result == nil {
-			result = []WorkoutLog{}
-		}
-		json.NewEncoder(w).Encode(result)
+		json.NewEncoder(w).Encode(logs)
 		return
 	}
 
 	if r.Method == http.MethodPost {
 		var req struct {
 			Username  string  `json:"username"`
-			MoveID    string  `json:"moveId"`
+			MoveID    *int    `json:"moveId"`
 			MoveTitle string  `json:"moveTitle"`
 			Weight    float64 `json:"weight"`
 			Reps      int     `json:"reps"`
 			Date      string  `json:"date"`
 		}
-
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
@@ -377,9 +349,7 @@ func workoutLogsHandler(w http.ResponseWriter, r *http.Request) {
 
 		if req.MoveTitle == "" || req.Reps <= 0 {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"message": "Exercise and valid repetitions are required",
-			})
+			json.NewEncoder(w).Encode(map[string]string{"message": "Exercise and valid repetitions are required"})
 			return
 		}
 
@@ -388,30 +358,56 @@ func workoutLogsHandler(w http.ResponseWriter, r *http.Request) {
 			logDate = time.Now().Format("2006-01-02")
 		}
 
-		newLog := WorkoutLog{
-			ID:          fmt.Sprintf("%d", nextWorkoutLogID),
-			Username:    req.Username,
-			MoveID:      req.MoveID,
-			MoveTitle:   req.MoveTitle,
-			Weight:      req.Weight,
-			Reps:        req.Reps,
-			Date:        logDate,
-			CreatedDate: time.Now(),
-		}
-		nextWorkoutLogID++
+		var l WorkoutLog
+		err := db.QueryRow(context.Background(),
+			`INSERT INTO workout_logs (username, move_id, move_title, weight, reps, date)
+			 VALUES ($1, $2, $3, $4, $5, $6)
+			 RETURNING id, username, move_id, move_title, weight, reps, date::text, created_at`,
+			req.Username, req.MoveID, req.MoveTitle, req.Weight, req.Reps, logDate,
+		).Scan(&l.ID, &l.Username, &l.MoveID, &l.MoveTitle, &l.Weight, &l.Reps, &l.Date, &l.CreatedDate)
 
-		workoutLogsDB = append([]WorkoutLog{newLog}, workoutLogsDB...)
+		if err != nil {
+			log.Printf("workoutLogsHandler POST error: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
 
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(newLog)
+		json.NewEncoder(w).Encode(l)
 		return
 	}
 
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// isPgUniqueViolation checks for PostgreSQL unique constraint violation (code 23505)
+func isPgUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	return len(err.Error()) > 5 && (contains(err.Error(), "23505") || contains(err.Error(), "unique constraint") || contains(err.Error(), "duplicate key"))
+}
+
+func contains(s, sub string) bool {
+	return len(s) >= len(sub) && (s == sub || len(s) > 0 && containsStr(s, sub))
+}
+
+func containsStr(s, sub string) bool {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}
+
+// ─── MAIN ────────────────────────────────────────────────────────────────────
+
 func main() {
-	initGymMovesStorage()
+	initDB()
+	defer db.Close()
 
 	http.HandleFunc("/api/login", enableCORS(loginHandler))
 	http.HandleFunc("/api/register", enableCORS(registerHandler))
@@ -421,7 +417,7 @@ func main() {
 	http.HandleFunc("/api/workout-logs", enableCORS(workoutLogsHandler))
 
 	port := ":8080"
-	fmt.Printf("Starting backend server on port %s...\n", port)
+	fmt.Printf("GymBro backend starting on port %s...\n", port)
 	if err := http.ListenAndServe(port, nil); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
