@@ -98,7 +98,7 @@
             <h2 class="page-title">Workout Tracker</h2>
             <p class="page-subtitle">Pantau transformasi dan histori latihan harianmu di sini.</p>
           </div>
-          <button class="action-btn" (click)="openAddLogModal()">+ Add Move</button>
+          <button type="button" class="action-btn" (click)="openAddLogModal()">+ Add Move</button>
         </div>
 
         <!-- Empty State Tracker -->
@@ -152,7 +152,7 @@
             <h2 class="page-title">Gym Move Management</h2>
             <p class="page-subtitle">Manage exercises, workout movements, and training routines.</p>
           </div>
-          <button class="action-btn" (click)="openAddModal()">+ Add Gym Move</button>
+          <button type="button" class="action-btn" (click)="openAddModal()">+ Add Gym Move</button>
         </div>
 
         <!-- Empty State -->
@@ -265,13 +265,6 @@
           placeholder="e.g. Incline Dumbbell Press" required>
       </div>
 
-      <!-- Description (free text) -->
-      <div class="input-group">
-        <label for="moveDescription">Description</label>
-        <textarea id="moveDescription" name="moveDescription" [(ngModel)]="moveDescription"
-          placeholder="Enter exercise description, targeted muscles, or cues (optional)" rows="3"></textarea>
-      </div>
-
       <!-- Type (upper / lower) -->
       <div class="input-group">
         <label for="moveType">Type</label>
@@ -291,6 +284,14 @@
             {{ cat }}
           </option>
         </select>
+      </div>
+
+
+      <!-- Description (free text) -->
+      <div class="input-group">
+        <label for="moveDescription">Description</label>
+        <textarea id="moveDescription" name="moveDescription" [(ngModel)]="moveDescription"
+          placeholder="Enter exercise description, targeted muscles, or cues (optional)" rows="3"></textarea>
       </div>
 
       <div class="modal-actions">
