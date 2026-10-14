@@ -1,6 +1,6 @@
 module github.com/zkael/gymbro-backend
 
-go 1.23.0
+go 1.26.0
 
 require (
 	github.com/jackc/pgx/v5 v5.5.5
