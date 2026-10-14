@@ -26,7 +26,10 @@ func initDB() {
 
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		dsn = "postgres://gymbro_user:gymbro_pass@localhost:5432/gymbro?sslmode=disable"
+		dsn = os.Getenv("DB_URL")
+	}
+	if dsn == "" {
+		log.Fatal("DATABASE_URL or DB_URL environment variable must be set")
 	}
 
 	var err error
