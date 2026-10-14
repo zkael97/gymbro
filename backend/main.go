@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -560,12 +559,13 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	if !strings.HasPrefix(port, ":") {
-		port = ":" + port
+	addr := port
+	if !strings.HasPrefix(addr, ":") {
+		addr = ":" + addr
 	}
 
-	fmt.Printf("GymBro backend starting on port %s...\n", port)
-	if err := http.ListenAndServe(port, nil); err != nil {
+	log.Printf("GymBro backend listening on %s (PORT=%s)...\n", addr, port)
+	if err := http.ListenAndServe(addr, nil); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }
