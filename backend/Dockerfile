@@ -1,25 +1,22 @@
-# ── Build stage ──────────────────────────────────────────────────────────────
+# Gunakan image resmi Go
 FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
-# Cache deps
+# Salin file dependencies
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Build binary
+# Salin seluruh source code backend
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o gymbro-server .
 
-# ── Runtime stage ────────────────────────────────────────────────────────────
-FROM alpine:3.20
+# Build aplikasi Go menjadi binary bernama "main"
+RUN go build -o main .
 
-RUN apk add --no-cache ca-certificates
+# Jalankan binary pada container yang ringan
+FROM alpine:latest
+WORKDIR /root/
+COPY --from=builder /app/main .
 
-WORKDIR /app
-COPY --from=builder /app/gymbro-server .
-
-# Railway injects PORT env var automatically
 EXPOSE 8080
-
-CMD ["./gymbro-server"]
+CMD ["./main"]
