@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // ─── DB Pool ────────────────────────────────────────────────────────────────
@@ -39,21 +40,67 @@ func initDB() {
 		log.Fatalf("Database ping failed: %v\n", err)
 	}
 
+	// Auto-migration: ensure username column exists on gym_moves for per-user moves
+	_, err = db.Exec(context.Background(), `
+		ALTER TABLE gym_moves ADD COLUMN IF NOT EXISTS username VARCHAR(100);
+		CREATE INDEX IF NOT EXISTS idx_gym_moves_username ON gym_moves(username);
+	`)
+	if err != nil {
+		log.Printf("[WARN] Failed to auto-migrate gym_moves username column: %v", err)
+	}
+
 	log.Println("Connected to PostgreSQL ✓")
 }
 
 // ─── CORS Middleware ────────────────────────────────────────────────────────
 
+// allowedOrigins holds the parsed list from ALLOWED_ORIGINS env var.
+// If empty, CORS falls back to reflecting the request Origin (dev mode).
+var allowedOrigins []string
+
+func initCORS() {
+	raw := os.Getenv("ALLOWED_ORIGINS") // e.g. "https://gymbro.vercel.app,https://www.gymbro.com"
+	if raw != "" {
+		for _, o := range strings.Split(raw, ",") {
+			trimmed := strings.TrimSpace(o)
+			if trimmed != "" {
+				allowedOrigins = append(allowedOrigins, trimmed)
+			}
+		}
+		log.Printf("CORS allowed origins: %v", allowedOrigins)
+	} else {
+		log.Println("[INFO] ALLOWED_ORIGINS not set — CORS will reflect request origin (dev mode)")
+	}
+}
+
+func isOriginAllowed(origin string) bool {
+	if len(allowedOrigins) == 0 {
+		return true // dev mode: allow everything
+	}
+	for _, allowed := range allowedOrigins {
+		if origin == allowed {
+			return true
+		}
+	}
+	return false
+}
+
 func enableCORS(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if origin != "" {
+
+		if origin != "" && isOriginAllowed(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-		} else {
+			w.Header().Set("Vary", "Origin")
+		} else if len(allowedOrigins) == 0 {
+			// Dev fallback: no whitelist configured
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 		}
+		// If origin is set but not allowed, no Access-Control-Allow-Origin header → browser blocks it.
+
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -97,10 +144,18 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("Hash password error: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(LoginResponse{Message: "Internal server error"})
+		return
+	}
+
 	var id int
-	err := db.QueryRow(context.Background(),
+	err = db.QueryRow(context.Background(),
 		`INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id`,
-		req.Username, req.Password,
+		req.Username, string(hashedPassword),
 	).Scan(&id)
 
 	if err != nil {
@@ -144,7 +199,25 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		req.Username,
 	).Scan(&id, &storedPassword)
 
-	if err != nil || storedPassword != req.Password {
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(LoginResponse{Message: "Invalid username or password"})
+		return
+	}
+
+	// Verify bcrypt hash, with fallback to plaintext for existing users prior to hashing
+	passwordMatches := false
+	if bcrypt.CompareHashAndPassword([]byte(storedPassword), []byte(req.Password)) == nil {
+		passwordMatches = true
+	} else if storedPassword == req.Password {
+		// Legacy plaintext password support & auto-upgrade to bcrypt hash
+		passwordMatches = true
+		if newHashed, hashErr := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost); hashErr == nil {
+			_, _ = db.Exec(context.Background(), `UPDATE users SET password = $1 WHERE id = $2`, string(newHashed), id)
+		}
+	}
+
+	if !passwordMatches {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(LoginResponse{Message: "Invalid username or password"})
 		return
@@ -194,9 +267,17 @@ func forgotPasswordHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("Hash password error: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(LoginResponse{Message: "Internal server error"})
+		return
+	}
+
 	tag, err := db.Exec(context.Background(),
 		`UPDATE users SET password = $1 WHERE username = $2`,
-		req.NewPassword, req.Username,
+		string(hashedPassword), req.Username,
 	)
 	if err != nil || tag.RowsAffected() == 0 {
 		w.WriteHeader(http.StatusNotFound)
@@ -211,6 +292,7 @@ func forgotPasswordHandler(w http.ResponseWriter, r *http.Request) {
 
 type GymMove struct {
 	ID          int       `json:"id"`
+	Username    string    `json:"username,omitempty"`
 	Title       string    `json:"title"`
 	Description string    `json:"description"`
 	Type        string    `json:"type"`
@@ -222,8 +304,31 @@ func gymMovesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if r.Method == http.MethodGet {
-		rows, err := db.Query(context.Background(),
-			`SELECT id, title, COALESCE(description,''), type, category, created_at FROM gym_moves ORDER BY id DESC`)
+		usernameQuery := r.URL.Query().Get("username")
+
+		var rows interface {
+			Next() bool
+			Scan(...interface{}) error
+			Close()
+		}
+		var err error
+
+		if usernameQuery != "" {
+			rows, err = db.Query(context.Background(),
+				`SELECT id, COALESCE(username, ''), title, COALESCE(description,''), type, category, created_at 
+				 FROM gym_moves 
+				 WHERE username = $1 
+				 ORDER BY id DESC`,
+				usernameQuery,
+			)
+		} else {
+			rows, err = db.Query(context.Background(),
+				`SELECT id, COALESCE(username, ''), title, COALESCE(description,''), type, category, created_at 
+				 FROM gym_moves 
+				 ORDER BY id DESC`,
+			)
+		}
+
 		if err != nil {
 			log.Printf("gymMovesHandler GET error: %v", err)
 			http.Error(w, "Database error", http.StatusInternalServerError)
@@ -234,7 +339,7 @@ func gymMovesHandler(w http.ResponseWriter, r *http.Request) {
 		moves := []GymMove{}
 		for rows.Next() {
 			var m GymMove
-			if err := rows.Scan(&m.ID, &m.Title, &m.Description, &m.Type, &m.Category, &m.CreatedDate); err != nil {
+			if err := rows.Scan(&m.ID, &m.Username, &m.Title, &m.Description, &m.Type, &m.Category, &m.CreatedDate); err != nil {
 				continue
 			}
 			moves = append(moves, m)
@@ -245,6 +350,7 @@ func gymMovesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPost {
 		var req struct {
+			Username    string `json:"username"`
 			Title       string `json:"title"`
 			Description string `json:"description"`
 			Type        string `json:"type"`
@@ -263,11 +369,11 @@ func gymMovesHandler(w http.ResponseWriter, r *http.Request) {
 
 		var m GymMove
 		err := db.QueryRow(context.Background(),
-			`INSERT INTO gym_moves (title, description, type, category)
-			 VALUES ($1, $2, $3, $4)
-			 RETURNING id, title, COALESCE(description,''), type, category, created_at`,
-			req.Title, req.Description, req.Type, req.Category,
-		).Scan(&m.ID, &m.Title, &m.Description, &m.Type, &m.Category, &m.CreatedDate)
+			`INSERT INTO gym_moves (username, title, description, type, category)
+			 VALUES ($1, $2, $3, $4, $5)
+			 RETURNING id, COALESCE(username, ''), title, COALESCE(description,''), type, category, created_at`,
+			req.Username, req.Title, req.Description, req.Type, req.Category,
+		).Scan(&m.ID, &m.Username, &m.Title, &m.Description, &m.Type, &m.Category, &m.CreatedDate)
 
 		if err != nil {
 			log.Printf("gymMovesHandler POST error: %v", err)
@@ -291,7 +397,7 @@ type WorkoutLog struct {
 	MoveID      *int      `json:"moveId"`
 	MoveTitle   string    `json:"moveTitle"`
 	Weight      float64   `json:"weight"`
-	Reps        int       `json:"reps"`
+	Reps        []int     `json:"reps"`
 	Date        string    `json:"date"`
 	CreatedDate time.Time `json:"createdDate"`
 }
@@ -331,7 +437,11 @@ func workoutLogsHandler(w http.ResponseWriter, r *http.Request) {
 		for rows.Next() {
 			var l WorkoutLog
 			if err := rows.Scan(&l.ID, &l.Username, &l.MoveID, &l.MoveTitle, &l.Weight, &l.Reps, &l.Date, &l.CreatedDate); err != nil {
+				log.Printf("workoutLogsHandler scan error: %v", err)
 				continue
+			}
+			if l.Reps == nil {
+				l.Reps = []int{}
 			}
 			logs = append(logs, l)
 		}
@@ -341,21 +451,37 @@ func workoutLogsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPost {
 		var req struct {
-			Username  string  `json:"username"`
-			MoveID    *int    `json:"moveId"`
-			MoveTitle string  `json:"moveTitle"`
-			Weight    float64 `json:"weight"`
-			Reps      int     `json:"reps"`
-			Date      string  `json:"date"`
+			Username  string          `json:"username"`
+			MoveID    *int            `json:"moveId"`
+			MoveTitle string          `json:"moveTitle"`
+			Weight    float64         `json:"weight"`
+			Reps      json.RawMessage `json:"reps"`
+			Date      string          `json:"date"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
 
-		if req.MoveTitle == "" || req.Reps <= 0 {
+		// Parse reps: can be []int or single int
+		var parsedReps []int
+		var multiReps []int
+		var singleRep int
+		if err := json.Unmarshal(req.Reps, &multiReps); err == nil {
+			for _, r := range multiReps {
+				if r > 0 {
+					parsedReps = append(parsedReps, r)
+				}
+			}
+		} else if err := json.Unmarshal(req.Reps, &singleRep); err == nil {
+			if singleRep > 0 {
+				parsedReps = append(parsedReps, singleRep)
+			}
+		}
+
+		if req.MoveTitle == "" || len(parsedReps) == 0 {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"message": "Exercise and valid repetitions are required"})
+			json.NewEncoder(w).Encode(map[string]string{"message": "Exercise and at least 1 valid repetition are required"})
 			return
 		}
 
@@ -369,13 +495,17 @@ func workoutLogsHandler(w http.ResponseWriter, r *http.Request) {
 			`INSERT INTO workout_logs (username, move_id, move_title, weight, reps, date)
 			 VALUES ($1, $2, $3, $4, $5, $6)
 			 RETURNING id, username, move_id, move_title, weight, reps, date::text, created_at`,
-			req.Username, req.MoveID, req.MoveTitle, req.Weight, req.Reps, logDate,
+			req.Username, req.MoveID, req.MoveTitle, req.Weight, parsedReps, logDate,
 		).Scan(&l.ID, &l.Username, &l.MoveID, &l.MoveTitle, &l.Weight, &l.Reps, &l.Date, &l.CreatedDate)
 
 		if err != nil {
 			log.Printf("workoutLogsHandler POST error: %v", err)
 			http.Error(w, "Database error", http.StatusInternalServerError)
 			return
+		}
+
+		if l.Reps == nil {
+			l.Reps = []int{}
 		}
 
 		w.WriteHeader(http.StatusCreated)
@@ -414,6 +544,8 @@ func containsStr(s, sub string) bool {
 func main() {
 	initDB()
 	defer db.Close()
+
+	initCORS()
 
 	http.HandleFunc("/api/login", enableCORS(loginHandler))
 	http.HandleFunc("/api/register", enableCORS(registerHandler))

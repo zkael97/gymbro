@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../auth.service';
+import { environment } from '../../environments/environment';
 
 @Component({
   selector: 'app-login',
@@ -24,7 +25,7 @@ export class Login {
   ) {}
 
   onSubmit() {
-    this.http.post<any>('http://localhost:8080/api/login', {
+    this.http.post<any>(`${environment.apiUrl}/api/login`, {
       username: this.username,
       password: this.password
     }).subscribe({

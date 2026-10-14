@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../auth.service';
+import { environment } from '../../environments/environment';
 
 export interface GymMoveItem {
   id?: string;
@@ -20,7 +21,7 @@ export interface WorkoutLogItem {
   moveId: string;
   moveTitle: string;
   weight: number;
-  reps: number;
+  reps: number[] | number;
   date: string;
   createdDate?: string;
 }
@@ -40,7 +41,7 @@ export interface DateGroupedLogs {
 })
 export class Home implements OnInit {
   username: string | null = '';
-  activeMenu = 'tracker';
+  activeMenu = signal<string>('tracker');
   isBackOfficeOpen = true;
   isMobileSidebarOpen = signal<boolean>(false);
 
@@ -65,7 +66,9 @@ export class Home implements OnInit {
   // Form inputs (Add Move to Tracker)
   logMoveId = '';
   logWeight: number | null = null;
-  logReps: number | null = null;
+  logReps1: number | null = null;
+  logReps2: number | null = null;
+  logReps3: number | null = null;
   logDate = this.getTodayDateString();
 
   // Helper to get local YYYY-MM-DD regardless of UTC timezone offset
@@ -75,6 +78,14 @@ export class Home implements OnInit {
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  // Helper to format reps array or number for display
+  formatReps(reps: number[] | number | undefined): string {
+    if (Array.isArray(reps)) {
+      return reps.length > 0 ? reps.join(', ') : '0';
+    }
+    return reps !== undefined && reps !== null ? String(reps) : '0';
   }
 
   // Toast Alert Notification (Success / Error)
@@ -99,7 +110,8 @@ export class Home implements OnInit {
   }
 
   loadGymMoves(): void {
-    this.http.get<GymMoveItem[]>('http://localhost:8080/api/gym-moves').subscribe({
+    const user = this.username || '';
+    this.http.get<GymMoveItem[]>(`${environment.apiUrl}/api/gym-moves?username=${encodeURIComponent(user)}`).subscribe({
       next: (data) => {
         this.gymMoves.set(data || []);
       },
@@ -111,7 +123,7 @@ export class Home implements OnInit {
 
   loadWorkoutLogs(): void {
     const user = this.username || '';
-    this.http.get<WorkoutLogItem[]>(`http://localhost:8080/api/workout-logs?username=${encodeURIComponent(user)}`).subscribe({
+    this.http.get<WorkoutLogItem[]>(`${environment.apiUrl}/api/workout-logs?username=${encodeURIComponent(user)}`).subscribe({
       next: (data) => {
         this.workoutLogs.set(data || []);
       },
@@ -168,7 +180,9 @@ export class Home implements OnInit {
     const moves = this.gymMoves();
     this.logMoveId = moves.length > 0 ? (moves[0].id || '') : '';
     this.logWeight = null;
-    this.logReps = null;
+    this.logReps1 = null;
+    this.logReps2 = null;
+    this.logReps3 = null;
     this.logDate = this.getTodayDateString();
     this.addLogError = '';
     this.showAddLogModal.set(true);
@@ -185,9 +199,17 @@ export class Home implements OnInit {
       this.addLogError = 'Silakan pilih gerakan olahraga.';
       return;
     }
-    if (this.logReps === null || this.logReps <= 0) {
-      this.addLogError = 'Jumlah repetisi harus lebih dari 0.';
+    if (this.logReps1 === null || this.logReps1 === undefined || this.logReps1 <= 0) {
+      this.addLogError = 'Repetisi 1 wajib diisi dan harus lebih dari 0.';
       return;
+    }
+
+    const repsArray: number[] = [Number(this.logReps1)];
+    if (this.logReps2 !== null && this.logReps2 !== undefined && this.logReps2 > 0) {
+      repsArray.push(Number(this.logReps2));
+    }
+    if (this.logReps3 !== null && this.logReps3 !== undefined && this.logReps3 > 0) {
+      repsArray.push(Number(this.logReps3));
     }
 
     const selectedMove = this.gymMoves().find((m) => m.id === this.logMoveId);
@@ -199,12 +221,12 @@ export class Home implements OnInit {
       moveId: this.logMoveId,
       moveTitle,
       weight: this.logWeight || 0,
-      reps: Number(this.logReps),
+      reps: repsArray,
       date: this.logDate || new Date().toISOString().substring(0, 10)
     };
 
     try {
-      const response = await fetch('http://localhost:8080/api/workout-logs', {
+      const response = await fetch(`${environment.apiUrl}/api/workout-logs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -297,6 +319,7 @@ export class Home implements OnInit {
 
     this.isSubmittingMove.set(true);
     const payload = {
+      username: this.username || '',
       title: this.moveTitle.trim(),
       description: this.moveDescription.trim(),
       type: this.moveType,
@@ -304,7 +327,7 @@ export class Home implements OnInit {
     };
 
     try {
-      const response = await fetch('http://localhost:8080/api/gym-moves', {
+      const response = await fetch(`${environment.apiUrl}/api/gym-moves`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -351,12 +374,12 @@ export class Home implements OnInit {
   }
 
   setActive(menu: string): void {
-    this.activeMenu = menu;
+    this.activeMenu.set(menu);
     this.closeMobileSidebar();
   }
 
   signOut(): void {
-    this.http.post<any>('http://localhost:8080/api/logout', {}).subscribe({
+    this.http.post<any>(`${environment.apiUrl}/api/logout`, {}).subscribe({
       next: () => {
         this.auth.clearUser();
         this.router.navigate(['/login']);

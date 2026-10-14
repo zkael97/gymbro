@@ -11,33 +11,21 @@
     </div>
 
     <nav class="sidebar-nav">
-      <a class="nav-item" [class.active]="activeMenu === 'dashboard'" (click)="setActive('dashboard')">
+      <button type="button" class="nav-item" [class.active]="activeMenu() === 'dashboard'" (click)="setActive('dashboard')">
         <span class="nav-icon">⊞</span>
         <span class="nav-label">Dashboard</span>
-      </a>
+      </button>
 
-      <a class="nav-item" [class.active]="activeMenu === 'tracker'" (click)="setActive('tracker')">
+      <button type="button" class="nav-item" [class.active]="activeMenu() === 'tracker'" (click)="setActive('tracker')">
         <span class="nav-icon">📈</span>
         <span class="nav-label">Tracker</span>
-      </a>
+      </button>
 
-      <!-- Back Office Menu Group -->
-      <div class="nav-group">
-        <button type="button" class="nav-item nav-item-dropdown" [class.open]="isBackOfficeOpen"
-          [class.active]="activeMenu.startsWith('backoffice')" (click)="toggleBackOffice()">
-          <span class="nav-icon">🏢</span>
-          <span class="nav-label">Back Office</span>
-          <span class="chevron" [class.rotated]="isBackOfficeOpen">▾</span>
-        </button>
-
-        <div class="submenu" *ngIf="isBackOfficeOpen">
-          <a class="submenu-item" [class.active]="activeMenu === 'backoffice-gym-move'"
-            (click)="setActive('backoffice-gym-move')">
-            <span class="submenu-icon">🏋️‍♂️</span>
-            <span class="submenu-label">Gym Move</span>
-          </a>
-        </div>
-      </div>
+      <!-- Single Menu: My Move -->
+      <button type="button" class="nav-item" [class.active]="activeMenu() === 'my-move'" (click)="setActive('my-move')">
+        <span class="nav-icon">🏋️‍♂️</span>
+        <span class="nav-label">My Move</span>
+      </button>
     </nav>
 
     <div class="sidebar-footer">
@@ -73,7 +61,7 @@
       </div>
 
       <!-- Dashboard cards placeholder -->
-      <div class="stats-grid" *ngIf="activeMenu === 'dashboard'">
+      <div class="stats-grid" *ngIf="activeMenu() === 'dashboard'">
         <div class="stat-card">
           <div class="stat-icon">🏋️</div>
           <div class="stat-label">Total Workouts</div>
@@ -92,7 +80,7 @@
       </div>
 
       <!-- TRACKER VIEW -->
-      <div class="page-container" *ngIf="activeMenu === 'tracker'">
+      <div class="page-container" *ngIf="activeMenu() === 'tracker'">
         <div class="page-header">
           <div>
             <h2 class="page-title">Workout Tracker</h2>
@@ -136,7 +124,7 @@
                   </div>
                   <div class="metric-pill reps">
                     <span class="metric-label">Repetisi</span>
-                    <span class="metric-val">{{ log.reps }} reps</span>
+                    <span class="metric-val">{{ formatReps(log.reps) }} reps</span>
                   </div>
                 </div>
               </div>
@@ -145,20 +133,20 @@
         </div>
       </div>
 
-      <!-- Back Office: Gym Move View -->
-      <div class="page-container" *ngIf="activeMenu === 'backoffice-gym-move'">
+      <!-- My Move View -->
+      <div class="page-container" *ngIf="activeMenu() === 'my-move'">
         <div class="page-header">
           <div>
-            <h2 class="page-title">Gym Move Management</h2>
-            <p class="page-subtitle">Manage exercises, workout movements, and training routines.</p>
+            <h2 class="page-title">My Move</h2>
+            <p class="page-subtitle">Manage your personal exercises, movements, and routines.</p>
           </div>
-          <button type="button" class="action-btn" (click)="openAddModal()">+ Add Gym Move</button>
+          <button type="button" class="action-btn" (click)="openAddModal()">+ Add Move</button>
         </div>
 
         <!-- Empty State -->
         <div class="empty-state" *ngIf="gymMoves().length === 0">
           <div class="empty-icon">🏋️</div>
-          <p class="empty-text">No gym moves found. Click "+ Add Gym Move" to create one.</p>
+          <p class="empty-text">No moves found. Click "+ Add Move" to create your personal exercise.</p>
         </div>
 
         <!-- Dynamic Gym Move Cards -->
@@ -208,7 +196,7 @@
           </option>
         </select>
         <small class="helper-text" *ngIf="gymMoves().length === 0">
-          Belum ada gerakan! Tambahkan gerakan di menu Back Office > Gym Move terlebih dahulu.
+          Belum ada gerakan! Tambahkan gerakan di menu My Move terlebih dahulu.
         </small>
       </div>
 
@@ -219,11 +207,20 @@
           placeholder="e.g. 60 (kosongkan jika tanpa beban / bodyweight)" min="0" step="0.5">
       </div>
 
-      <!-- Jumlah Repetisi -->
-      <div class="input-group">
-        <label for="logReps">Jumlah Repetisi</label>
-        <input type="number" id="logReps" name="logReps" [(ngModel)]="logReps" placeholder="Jumlah  Repetisi" min="1"
-          required>
+      <!-- Repetisi (Set 1, Set 2, Set 3) -->
+      <div class="reps-grid-container">
+        <div class="input-group">
+          <label for="logReps1">Repetisi 1 <span class="required-mark">*</span></label>
+          <input type="number" id="logReps1" name="logReps1" [(ngModel)]="logReps1" placeholder="Wajib (e.g. 12)" min="1" required>
+        </div>
+        <div class="input-group">
+          <label for="logReps2">Repetisi 2 <span class="optional-mark">(opsional)</span></label>
+          <input type="number" id="logReps2" name="logReps2" [(ngModel)]="logReps2" placeholder="e.g. 10" min="1">
+        </div>
+        <div class="input-group">
+          <label for="logReps3">Repetisi 3 <span class="optional-mark">(opsional)</span></label>
+          <input type="number" id="logReps3" name="logReps3" [(ngModel)]="logReps3" placeholder="e.g. 8" min="1">
+        </div>
       </div>
 
       <!-- Tanggal Latihan -->
@@ -245,11 +242,11 @@
   </div>
 </div>
 
-<!-- Modal Add Gym Move -->
+<!-- Modal Add Move -->
 <div class="modal-backdrop" *ngIf="showAddModal()" (click)="closeAddModal()">
   <div class="modal-card" (click)="$event.stopPropagation()">
     <div class="modal-header">
-      <h3 class="modal-title">Add Gym Move</h3>
+      <h3 class="modal-title">Add Move</h3>
       <button class="close-btn" (click)="closeAddModal()">✕</button>
     </div>
 
@@ -299,7 +296,7 @@
           Cancel
         </button>
         <button type="button" class="save-btn" (click)="saveGymMove()" [disabled]="isSubmittingMove()">
-          {{ isSubmittingMove() ? 'Saving...' : 'Save Gym Move' }}
+          {{ isSubmittingMove() ? 'Saving...' : 'Save Move' }}
         </button>
       </div>
     </form>

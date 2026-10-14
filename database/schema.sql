@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- ---------------------
 CREATE TABLE IF NOT EXISTS gym_moves (
     id          SERIAL PRIMARY KEY,
+    username    VARCHAR(100),
     title       VARCHAR(200) NOT NULL,
     description TEXT,
     type        VARCHAR(20)  NOT NULL CHECK (type IN ('upper', 'lower')),
@@ -36,7 +37,7 @@ CREATE TABLE IF NOT EXISTS workout_logs (
     move_id     INTEGER REFERENCES gym_moves(id) ON DELETE SET NULL,
     move_title  VARCHAR(200) NOT NULL,
     weight      NUMERIC(6,2) DEFAULT 0,
-    reps        INTEGER NOT NULL CHECK (reps > 0),
+    reps        INTEGER[]    NOT NULL,
     date        DATE NOT NULL,
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -44,6 +45,7 @@ CREATE TABLE IF NOT EXISTS workout_logs (
 -- Indexes for faster queries
 CREATE INDEX IF NOT EXISTS idx_workout_logs_username ON workout_logs(username);
 CREATE INDEX IF NOT EXISTS idx_workout_logs_date     ON workout_logs(date DESC);
+CREATE INDEX IF NOT EXISTS idx_gym_moves_username    ON gym_moves(username);
 CREATE INDEX IF NOT EXISTS idx_gym_moves_type        ON gym_moves(type);
 
 -- ---------------------

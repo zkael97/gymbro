@@ -14,3 +14,6 @@ frontend/.angular/
 # OS
 .DS_Store
 Thumbs.db
+
+# Antigravity local config & skills
+.antigravity/
