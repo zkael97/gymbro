@@ -75,10 +75,10 @@ func initCORS() {
 
 func isOriginAllowed(origin string) bool {
 	if len(allowedOrigins) == 0 {
-		return true // dev mode: allow everything
+		return true // dev/default mode: allow any origin
 	}
 	for _, allowed := range allowedOrigins {
-		if origin == allowed {
+		if allowed == "*" || origin == allowed || strings.HasSuffix(origin, ".vercel.app") {
 			return true
 		}
 	}
@@ -89,21 +89,23 @@ func enableCORS(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 
-		if origin != "" && isOriginAllowed(origin) {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Vary", "Origin")
-		} else if len(allowedOrigins) == 0 {
-			// Dev fallback: no whitelist configured
+		if origin != "" {
+			if isOriginAllowed(origin) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
+		} else {
+			// Fallback if no Origin header provided (or non-browser curl requests)
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 		}
-		// If origin is set but not allowed, no Access-Control-Allow-Origin header → browser blocks it.
 
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Vary", "Origin")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
+		w.Header().Set("Access-Control-Max-Age", "86400")
 
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
