@@ -1,19 +1,42 @@
-# Environment / secrets
-backend/.env
+# AI & IDE Tooling
+.antigravity/
+.continue/
+skills/
+.gemini/
+
+# Environment & Secrets
 .env
+.env.*
+!.env.example
+*.local
+backend/.env
+functions/.env
+functions/.env.*
+!functions/.env.example
+serviceAccountKey.json
+*-firebase-adminsdk-*.json
 
-# Go
-backend/gym_moves.json
-backend/gymbro
-
-# Angular
+# Dependencies
+node_modules/
 frontend/node_modules/
+functions/node_modules/
+scripts/node_modules/
+
+# Build & Dist outputs
 frontend/dist/
 frontend/.angular/
+functions/dist/
+backend/gymbro
+backend/gym_moves.json
 
-# OS
+# Firebase & Cloud Functions logs / cache
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+
+# OS & Temporary
 .DS_Store
 Thumbs.db
+*.log
 
-# Antigravity local config & skills
-.antigravity/

@@ -1,5 +1,6 @@
-// Production environment — replace apiUrl with your Railway backend URL
+// Production environment — replace apiUrl with your Firebase Cloud Function URL
+// Format: https://<region>-<project-id>.cloudfunctions.net/api
 export const environment = {
   production: true,
-  apiUrl: 'https://thorough-adaptation-production-5a14.up.railway.app'
+  apiUrl: 'https://us-central1-gymbro.cloudfunctions.net/api'
 };
