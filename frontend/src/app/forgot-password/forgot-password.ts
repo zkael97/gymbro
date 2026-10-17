@@ -1,9 +1,8 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
 import { Router, RouterModule } from '@angular/router';
-import { environment } from '../../environments/environment';
+import { FirebaseService } from '../firebase.service';
 
 @Component({
   selector: 'app-forgot-password',
@@ -21,11 +20,11 @@ export class ForgotPassword {
   loading = false;
 
   constructor(
-    private http: HttpClient,
-    private router: Router
+    private router: Router,
+    private firebaseService: FirebaseService
   ) {}
 
-  onSubmit() {
+  async onSubmit() {
     this.errorMessage = '';
     this.successMessage = '';
 
@@ -40,21 +39,16 @@ export class ForgotPassword {
     }
 
     this.loading = true;
-    this.http.post<any>(`${environment.apiUrl}/api/forgot-password`, {
-      username: this.username,
-      newPassword: this.newPassword
-    }).subscribe({
-      next: (response) => {
-        this.loading = false;
-        this.successMessage = response.message || 'Password reset successfully! Redirecting to login...';
-        setTimeout(() => {
-          this.router.navigate(['/login']);
-        }, 2000);
-      },
-      error: (err) => {
-        this.loading = false;
-        this.errorMessage = err.error?.message || 'Failed to reset password';
-      }
-    });
+    try {
+      const response = await this.firebaseService.forgotPassword(this.username, this.newPassword);
+      this.loading = false;
+      this.successMessage = response.message || 'Password reset successfully! Redirecting to login...';
+      setTimeout(() => {
+        this.router.navigate(['/login']);
+      }, 2000);
+    } catch (err: any) {
+      this.loading = false;
+      this.errorMessage = err.message || 'Failed to reset password';
+    }
   }
 }

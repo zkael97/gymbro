@@ -1,30 +1,9 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../auth.service';
-import { environment } from '../../environments/environment';
-
-export interface GymMoveItem {
-  id?: string;
-  title: string;
-  description?: string;
-  type: string;
-  category: string;
-  createdDate?: string;
-}
-
-export interface WorkoutLogItem {
-  id?: string;
-  username: string;
-  moveId: string;
-  moveTitle: string;
-  weight: number;
-  reps: number[] | number;
-  date: string;
-  createdDate?: string;
-}
+import { FirebaseService, GymMoveItem, WorkoutLogItem } from '../firebase.service';
 
 export interface DateGroupedLogs {
   date: string;
@@ -98,9 +77,9 @@ export class Home implements OnInit {
   readonly lowerCategories = ['Quadriceps', 'Hamstring', 'Glutes', 'Calves', 'Others'];
 
   constructor(
-    private http: HttpClient,
     private router: Router,
-    private auth: AuthService
+    private auth: AuthService,
+    private firebaseService: FirebaseService
   ) { }
 
   ngOnInit(): void {
@@ -109,28 +88,22 @@ export class Home implements OnInit {
     this.loadWorkoutLogs();
   }
 
-  loadGymMoves(): void {
-    const user = this.username || '';
-    this.http.get<GymMoveItem[]>(`${environment.apiUrl}/api/gym-moves?username=${encodeURIComponent(user)}`).subscribe({
-      next: (data) => {
-        this.gymMoves.set(data || []);
-      },
-      error: (err) => {
-        console.error('Failed to load gym moves', err);
-      }
-    });
+  async loadGymMoves(): Promise<void> {
+    try {
+      const data = await this.firebaseService.getGymMoves(this.username || '');
+      this.gymMoves.set(data || []);
+    } catch (err) {
+      console.error('Failed to load gym moves', err);
+    }
   }
 
-  loadWorkoutLogs(): void {
-    const user = this.username || '';
-    this.http.get<WorkoutLogItem[]>(`${environment.apiUrl}/api/workout-logs?username=${encodeURIComponent(user)}`).subscribe({
-      next: (data) => {
-        this.workoutLogs.set(data || []);
-      },
-      error: (err) => {
-        console.error('Failed to load workout logs', err);
-      }
-    });
+  async loadWorkoutLogs(): Promise<void> {
+    try {
+      const data = await this.firebaseService.getWorkoutLogs(this.username || '');
+      this.workoutLogs.set(data || []);
+    } catch (err) {
+      console.error('Failed to load workout logs', err);
+    }
   }
 
   // Group workout logs by date (descending: newest date first)
@@ -216,28 +189,17 @@ export class Home implements OnInit {
     const moveTitle = selectedMove ? selectedMove.title : 'Exercise';
 
     this.isSubmittingLog.set(true);
-    const payload = {
-      username: this.username || 'user',
-      moveId: this.logMoveId,
-      moveTitle,
-      weight: this.logWeight || 0,
-      reps: repsArray,
-      date: this.logDate || new Date().toISOString().substring(0, 10)
-    };
 
     try {
-      const response = await fetch(`${environment.apiUrl}/api/workout-logs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+      const newLog = await this.firebaseService.addWorkoutLog({
+        username: this.username || 'user',
+        moveId: this.logMoveId,
+        moveTitle,
+        weight: this.logWeight || 0,
+        reps: repsArray,
+        date: this.logDate || new Date().toISOString().substring(0, 10)
       });
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => null);
-        throw new Error(errData?.message || `Server returned ${response.status}`);
-      }
-
-      const newLog = await response.json();
       this.isSubmittingLog.set(false);
       this.workoutLogs.update((list) => [newLog, ...list]);
       this.showAddLogModal.set(false);
@@ -246,10 +208,7 @@ export class Home implements OnInit {
     } catch (err: any) {
       this.isSubmittingLog.set(false);
       this.showAddLogModal.set(false);
-      const msg = err?.message?.includes('Failed to fetch')
-        ? 'Gagal menyimpan catatan karena masalah jaringan/koneksi terputus.'
-        : (err?.message || 'Gagal menyimpan catatan latihan.');
-      this.triggerAlert('error', msg);
+      this.triggerAlert('error', err?.message || 'Gagal menyimpan catatan latihan.');
     }
   }
 
@@ -318,31 +277,16 @@ export class Home implements OnInit {
     }
 
     this.isSubmittingMove.set(true);
-    const payload = {
-      username: this.username || '',
-      title: this.moveTitle.trim(),
-      description: this.moveDescription.trim(),
-      type: this.moveType,
-      category: this.moveCategory
-    };
 
     try {
-      const response = await fetch(`${environment.apiUrl}/api/gym-moves`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
+      const newMove = await this.firebaseService.addGymMove({
+        username: this.username || '',
+        title: this.moveTitle.trim(),
+        description: this.moveDescription.trim(),
+        type: this.moveType,
+        category: this.moveCategory
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.message || `Server returned ${response.status}`);
-      }
-
-      const newMove = await response.json();
-
-      // Immediately close modal form, update list, and trigger 5s alert
       this.isSubmittingMove.set(false);
       this.gymMoves.update((list) => [newMove, ...list]);
       this.showAddModal.set(false);
@@ -351,13 +295,7 @@ export class Home implements OnInit {
     } catch (err: any) {
       this.isSubmittingMove.set(false);
       this.showAddModal.set(false);
-
-      const errorMessage =
-        err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError')
-          ? 'Gagal menyimpan gerakan karena masalah jaringan atau koneksi server terputus.'
-          : (err?.message || 'Gagal menyimpan gerakan ke server.');
-
-      this.triggerAlert('error', errorMessage);
+      this.triggerAlert('error', err?.message || 'Gagal menyimpan gerakan ke server.');
     }
   }
 
@@ -379,16 +317,7 @@ export class Home implements OnInit {
   }
 
   signOut(): void {
-    this.http.post<any>(`${environment.apiUrl}/api/logout`, {}).subscribe({
-      next: () => {
-        this.auth.clearUser();
-        this.router.navigate(['/login']);
-      },
-      error: () => {
-        // Even if API call fails, clear local session and redirect
-        this.auth.clearUser();
-        this.router.navigate(['/login']);
-      }
-    });
+    this.auth.clearUser();
+    this.router.navigate(['/login']);
   }
 }

@@ -1,10 +1,9 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../auth.service';
-import { environment } from '../../environments/environment';
+import { FirebaseService } from '../firebase.service';
 
 @Component({
   selector: 'app-login',
@@ -19,23 +18,19 @@ export class Login {
   errorMessage = '';
 
   constructor(
-    private http: HttpClient,
     private router: Router,
-    private auth: AuthService
+    private auth: AuthService,
+    private firebaseService: FirebaseService
   ) {}
 
-  onSubmit() {
-    this.http.post<any>(`${environment.apiUrl}/api/login`, {
-      username: this.username,
-      password: this.password
-    }).subscribe({
-      next: (response) => {
-        this.auth.setUser(response.user.username, response.token);
-        this.router.navigate(['/home']);
-      },
-      error: (err) => {
-        this.errorMessage = err.error?.message || 'Login failed';
-      }
-    });
+  async onSubmit() {
+    this.errorMessage = '';
+    try {
+      const response = await this.firebaseService.login(this.username, this.password);
+      this.auth.setUser(response.user.username, response.token);
+      this.router.navigate(['/home']);
+    } catch (err: any) {
+      this.errorMessage = err.message || 'Login failed';
+    }
   }
 }

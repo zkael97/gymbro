@@ -1,9 +1,8 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
 import { Router, RouterModule } from '@angular/router';
-import { environment } from '../../environments/environment';
+import { FirebaseService } from '../firebase.service';
 
 @Component({
   selector: 'app-register',
@@ -18,25 +17,24 @@ export class Register {
   confirmPassword = '';
   errorMessage = '';
 
-  constructor(private http: HttpClient, private router: Router) {}
+  constructor(
+    private router: Router,
+    private firebaseService: FirebaseService
+  ) {}
 
-  onSubmit() {
+  async onSubmit() {
     if (this.password !== this.confirmPassword) {
       this.errorMessage = 'Passwords do not match';
       return;
     }
 
-    this.http.post<any>(`${environment.apiUrl}/api/register`, {
-      username: this.username,
-      password: this.password
-    }).subscribe({
-      next: (response) => {
-        alert(response.message);
-        this.router.navigate(['/login']);
-      },
-      error: (err) => {
-        this.errorMessage = err.error?.message || 'Registration failed';
-      }
-    });
+    this.errorMessage = '';
+    try {
+      const response = await this.firebaseService.register(this.username, this.password);
+      alert(response.message);
+      this.router.navigate(['/login']);
+    } catch (err: any) {
+      this.errorMessage = err.message || 'Registration failed';
+    }
   }
 }
