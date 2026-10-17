@@ -133,40 +133,45 @@ export class FirebaseService {
   // --- GYM MOVES METHODS ---
 
   async getGymMoves(username?: string): Promise<GymMoveItem[]> {
-    const movesRef = collection(this.db, 'gym_moves');
-    const snap = await getDocs(movesRef);
-
     const cleanUser = username ? username.trim().toLowerCase() : '';
-    const results: GymMoveItem[] = [];
+    if (!cleanUser) {
+      return [];
+    }
 
+    const movesRef = collection(this.db, 'gym_moves');
+    const q = query(movesRef, where('username', '==', cleanUser));
+    const snap = await getDocs(q);
+
+    const results: GymMoveItem[] = [];
     snap.forEach((d) => {
       const data = d.data();
-      const moveUser = data['username'] ? String(data['username']).toLowerCase() : '';
-      // Global move (empty username) or owned by current user
-      if (!moveUser || moveUser === cleanUser) {
-        let createdDate = new Date().toISOString();
-        if (data['createdAt'] instanceof Timestamp) {
-          createdDate = data['createdAt'].toDate().toISOString();
-        }
-        results.push({
-          id: d.id,
-          username: data['username'] || '',
-          title: data['title'] || '',
-          description: data['description'] || '',
-          type: data['type'] || 'upper',
-          category: data['category'] || '',
-          createdDate
-        });
+      let createdDate = new Date().toISOString();
+      if (data['createdAt'] instanceof Timestamp) {
+        createdDate = data['createdAt'].toDate().toISOString();
       }
+      results.push({
+        id: d.id,
+        username: data['username'] || '',
+        title: data['title'] || '',
+        description: data['description'] || '',
+        type: data['type'] || 'upper',
+        category: data['category'] || '',
+        createdDate
+      });
     });
 
     return results;
   }
 
   async addGymMove(item: Omit<GymMoveItem, 'id' | 'createdDate'>): Promise<GymMoveItem> {
+    const cleanUser = item.username ? item.username.trim().toLowerCase() : '';
+    if (!cleanUser) {
+      throw new Error('Username is required to create a move');
+    }
+
     const movesRef = collection(this.db, 'gym_moves');
     const docData = {
-      username: item.username ? item.username.trim().toLowerCase() : null,
+      username: cleanUser,
       title: item.title.trim(),
       description: item.description?.trim() || '',
       type: item.type.toLowerCase(),
@@ -178,6 +183,7 @@ export class FirebaseService {
     return {
       id: docRef.id,
       ...item,
+      username: cleanUser,
       createdDate: new Date().toISOString()
     };
   }

@@ -20,7 +20,7 @@ This guide documents the architecture, database schema, data migration, security
 #### `gym_moves`
 - **Document ID**: Auto-generated Firestore document ID.
 - **Fields**:
-  - `username` (string | null): Username for user-created custom moves, or `null` for global/system moves.
+  - `username` (string): Username/User ID owning the custom move (isolated strictly per user).
   - `title` (string): Exercise name (e.g. "Barbell Bench Press").
   - `description` (string): Description of the movement.
   - `type` ("upper" | "lower"): Target muscle group area.

@@ -15,11 +15,13 @@ service cloud.firestore {
 
     // GYM MOVES COLLECTION
     match /gym_moves/{moveId} {
-      // Anyone can read public moves (username == null / empty) or user-created moves
+      // Reading moves: allowed (client query filters by user's username)
       allow read: if true;
 
-      // Allow creating new moves with required fields
-      allow create: if request.resource.data.title is string
+      // Allow creating new moves with strictly required username and fields
+      allow create: if request.resource.data.username is string
+                    && request.resource.data.username.size() > 0
+                    && request.resource.data.title is string
                     && request.resource.data.title.size() > 0
                     && request.resource.data.type in ['upper', 'lower']
                     && request.resource.data.category is string;

@@ -309,29 +309,18 @@ func gymMovesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodGet {
 		usernameQuery := r.URL.Query().Get("username")
-
-		var rows interface {
-			Next() bool
-			Scan(...interface{}) error
-			Close()
+		if usernameQuery == "" {
+			json.NewEncoder(w).Encode([]GymMove{})
+			return
 		}
-		var err error
 
-		if usernameQuery != "" {
-			rows, err = db.Query(context.Background(),
-				`SELECT id, COALESCE(username, ''), title, COALESCE(description,''), type, category, created_at 
-				 FROM gym_moves 
-				 WHERE username = $1 
-				 ORDER BY id DESC`,
-				usernameQuery,
-			)
-		} else {
-			rows, err = db.Query(context.Background(),
-				`SELECT id, COALESCE(username, ''), title, COALESCE(description,''), type, category, created_at 
-				 FROM gym_moves 
-				 ORDER BY id DESC`,
-			)
-		}
+		rows, err := db.Query(context.Background(),
+			`SELECT id, COALESCE(username, ''), title, COALESCE(description,''), type, category, created_at 
+			 FROM gym_moves 
+			 WHERE username = $1 
+			 ORDER BY id DESC`,
+			usernameQuery,
+		)
 
 		if err != nil {
 			log.Printf("gymMovesHandler GET error: %v", err)
@@ -365,9 +354,9 @@ func gymMovesHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if req.Title == "" || req.Type == "" || req.Category == "" {
+		if req.Username == "" || req.Title == "" || req.Type == "" || req.Category == "" {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"message": "Title, type, and category are required"})
+			json.NewEncoder(w).Encode(map[string]string{"message": "Username, title, type, and category are required"})
 			return
 		}
 

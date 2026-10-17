@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- ---------------------
 CREATE TABLE IF NOT EXISTS gym_moves (
     id          SERIAL PRIMARY KEY,
-    username    VARCHAR(100),
+    username    VARCHAR(100) NOT NULL,
     title       VARCHAR(200) NOT NULL,
     description TEXT,
     type        VARCHAR(20)  NOT NULL CHECK (type IN ('upper', 'lower')),

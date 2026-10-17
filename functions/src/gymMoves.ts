@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { Timestamp, Filter } from "firebase-admin/firestore";
+import { Timestamp } from "firebase-admin/firestore";
 import { db, COLLECTIONS } from "./firebase";
 import { GymMoveDoc, GymMoveResponse, MoveType } from "./types";
 
@@ -9,25 +9,16 @@ export const gymMovesRouter = Router();
 gymMovesRouter.get("/", async (req: Request, res: Response): Promise<void> => {
   try {
     const usernameQuery = req.query.username ? String(req.query.username).trim().toLowerCase() : "";
-
-    let querySnapshot;
-    const movesRef = db.collection(COLLECTIONS.GYM_MOVES);
-
-    if (usernameQuery) {
-      // Query moves that are either global (username is null or empty) OR belong to this specific user
-      querySnapshot = await movesRef
-        .where(
-          Filter.or(
-            Filter.where("username", "==", null),
-            Filter.where("username", "==", ""),
-            Filter.where("username", "==", usernameQuery)
-          )
-        )
-        .orderBy("createdAt", "desc")
-        .get();
-    } else {
-      querySnapshot = await movesRef.orderBy("createdAt", "desc").get();
+    if (!usernameQuery) {
+      res.status(200).json([]);
+      return;
     }
+
+    const movesRef = db.collection(COLLECTIONS.GYM_MOVES);
+    const querySnapshot = await movesRef
+      .where("username", "==", usernameQuery)
+      .orderBy("createdAt", "desc")
+      .get();
 
     const moves: GymMoveResponse[] = querySnapshot.docs.map((doc) => {
       const data = doc.data() as GymMoveDoc;
@@ -54,8 +45,9 @@ gymMovesRouter.post("/", async (req: Request, res: Response): Promise<void> => {
   try {
     const { username, title, description, type, category } = req.body;
 
-    if (!title || !type || !category) {
-      res.status(400).json({ message: "Title, type, and category are required" });
+    const cleanUsername = username ? String(username).trim().toLowerCase() : "";
+    if (!cleanUsername || !title || !type || !category) {
+      res.status(400).json({ message: "Username, title, type, and category are required" });
       return;
     }
 
@@ -65,7 +57,6 @@ gymMovesRouter.post("/", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const cleanUsername = username ? String(username).trim().toLowerCase() : null;
     const newDoc: GymMoveDoc = {
       username: cleanUsername,
       title: String(title).trim(),
