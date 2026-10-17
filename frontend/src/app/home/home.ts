@@ -59,12 +59,12 @@ export class Home implements OnInit {
     return `${year}-${month}-${day}`;
   }
 
-  // Helper to format reps array or number for display
+  // Helper to format reps (weight in kg per repetition/set) for display
   formatReps(reps: number[] | number | undefined): string {
     if (Array.isArray(reps)) {
-      return reps.length > 0 ? reps.join(', ') : '0';
+      return reps.length > 0 ? reps.map((r) => `${r} kg`).join(', ') : '0 kg';
     }
-    return reps !== undefined && reps !== null ? String(reps) : '0';
+    return reps !== undefined && reps !== null ? `${reps} kg` : '0 kg';
   }
 
   // Toast Alert Notification (Success / Error)

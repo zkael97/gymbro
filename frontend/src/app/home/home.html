@@ -118,13 +118,9 @@
                 </div>
 
                 <div class="workout-metrics">
-                  <div class="metric-pill weight">
-                    <span class="metric-label">Beban</span>
-                    <span class="metric-val">{{ log.weight }} kg</span>
-                  </div>
                   <div class="metric-pill reps">
                     <span class="metric-label">Repetisi</span>
-                    <span class="metric-val">{{ formatReps(log.reps) }} reps</span>
+                    <span class="metric-val">{{ formatReps(log.reps) }}</span>
                   </div>
                 </div>
               </div>
@@ -200,26 +196,19 @@
         </small>
       </div>
 
-      <!-- Beban (kg) -->
-      <div class="input-group">
-        <label for="logWeight">Beban (kg)</label>
-        <input type="number" id="logWeight" name="logWeight" [(ngModel)]="logWeight"
-          placeholder="e.g. 60 (kosongkan jika tanpa beban / bodyweight)" min="0" step="0.5">
-      </div>
-
-      <!-- Repetisi (Set 1, Set 2, Set 3) -->
+      <!-- Repetisi Beban (kg) per Set -->
       <div class="reps-grid-container">
         <div class="input-group">
-          <label for="logReps1">Repetisi 1 <span class="required-mark">*</span></label>
-          <input type="number" id="logReps1" name="logReps1" [(ngModel)]="logReps1" placeholder="Wajib (e.g. 12)" min="1" required>
+          <label for="logReps1">Repetisi 1 (kg) <span class="required-mark">*</span></label>
+          <input type="number" id="logReps1" name="logReps1" [(ngModel)]="logReps1" placeholder="Wajib (e.g. 50)" min="0" step="0.5" required>
         </div>
         <div class="input-group">
-          <label for="logReps2">Repetisi 2 <span class="optional-mark">(opsional)</span></label>
-          <input type="number" id="logReps2" name="logReps2" [(ngModel)]="logReps2" placeholder="e.g. 10" min="1">
+          <label for="logReps2">Repetisi 2 (kg) <span class="optional-mark">(opsional)</span></label>
+          <input type="number" id="logReps2" name="logReps2" [(ngModel)]="logReps2" placeholder="e.g. 55" min="0" step="0.5">
         </div>
         <div class="input-group">
-          <label for="logReps3">Repetisi 3 <span class="optional-mark">(opsional)</span></label>
-          <input type="number" id="logReps3" name="logReps3" [(ngModel)]="logReps3" placeholder="e.g. 8" min="1">
+          <label for="logReps3">Repetisi 3 (kg) <span class="optional-mark">(opsional)</span></label>
+          <input type="number" id="logReps3" name="logReps3" [(ngModel)]="logReps3" placeholder="e.g. 60" min="0" step="0.5">
         </div>
       </div>
 
