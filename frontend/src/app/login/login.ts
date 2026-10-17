@@ -16,6 +16,8 @@ export class Login {
   username = '';
   password = '';
   errorMessage = '';
+  showPassword = false;
+  isLoading = false;
 
   constructor(
     private router: Router,
@@ -23,14 +25,21 @@ export class Login {
     private firebaseService: FirebaseService
   ) {}
 
+  togglePasswordVisibility(): void {
+    this.showPassword = !this.showPassword;
+  }
+
   async onSubmit() {
     this.errorMessage = '';
+    this.isLoading = true;
     try {
       const response = await this.firebaseService.login(this.username, this.password);
       this.auth.setUser(response.user.username, response.token);
       this.router.navigate(['/home']);
     } catch (err: any) {
       this.errorMessage = err.message || 'Login failed';
+    } finally {
+      this.isLoading = false;
     }
   }
 }

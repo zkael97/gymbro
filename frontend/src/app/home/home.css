@@ -83,60 +83,6 @@
   color: #60a5fa;
 }
 
-.nav-item-dropdown {
-  justify-content: flex-start;
-}
-
-.nav-item-dropdown .chevron {
-  margin-left: auto;
-  font-size: 14px;
-  transition: transform 0.2s ease;
-}
-
-.nav-item-dropdown .chevron.rotated {
-  transform: rotate(180deg);
-}
-
-.submenu {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
-  padding-left: 20px;
-}
-
-.submenu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 14px;
-  border-radius: 8px;
-  cursor: pointer;
-  pointer-events: auto;
-  user-select: none;
-  position: relative;
-  z-index: 1;
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 13.5px;
-  font-weight: 500;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-
-.submenu-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #ffffff;
-}
-
-.submenu-item.active {
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
-  font-weight: 600;
-}
-
-.submenu-icon {
-  font-size: 15px;
-}
-
 .nav-icon {
   font-size: 18px;
   width: 22px;
@@ -359,26 +305,6 @@
   font-size: 32px;
   font-weight: 700;
   color: #ffffff;
-}
-
-/* Coming soon */
-.coming-soon {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 80px 20px;
-  color: rgba(255, 255, 255, 0.3);
-}
-
-.coming-soon-icon {
-  font-size: 56px;
-}
-
-.coming-soon-text {
-  font-size: 18px;
-  font-weight: 500;
 }
 
 /* ===== GYM MOVE / BACK OFFICE PAGE ===== */

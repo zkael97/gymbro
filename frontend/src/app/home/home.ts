@@ -21,7 +21,6 @@ export interface DateGroupedLogs {
 export class Home implements OnInit {
   username: string | null = '';
   activeMenu = signal<string>('tracker');
-  isBackOfficeOpen = true;
   isMobileSidebarOpen = signal<boolean>(false);
 
   // Gym Move State as Signals for instant synchronous UI re-rendering
@@ -297,10 +296,6 @@ export class Home implements OnInit {
       this.showAddModal.set(false);
       this.triggerAlert('error', err?.message || 'Gagal menyimpan gerakan ke server.');
     }
-  }
-
-  toggleBackOffice(): void {
-    this.isBackOfficeOpen = !this.isBackOfficeOpen;
   }
 
   toggleMobileSidebar(): void {
