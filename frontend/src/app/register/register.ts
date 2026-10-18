@@ -16,6 +16,8 @@ export class Register {
   password = '';
   confirmPassword = '';
   errorMessage = '';
+  showPassword = false;
+  showConfirmPassword = false;
   isLoading = false;
 
   constructor(
@@ -24,6 +26,14 @@ export class Register {
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone
   ) {}
+
+  togglePasswordVisibility(): void {
+    this.showPassword = !this.showPassword;
+  }
+
+  toggleConfirmPasswordVisibility(): void {
+    this.showConfirmPassword = !this.showConfirmPassword;
+  }
 
   async onSubmit() {
     this.errorMessage = '';

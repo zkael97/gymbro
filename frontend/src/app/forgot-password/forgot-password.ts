@@ -18,6 +18,16 @@ export class ForgotPassword {
   errorMessage = '';
   successMessage = '';
   loading = false;
+  showNewPassword = false;
+  showConfirmPassword = false;
+
+  toggleNewPasswordVisibility(): void {
+    this.showNewPassword = !this.showNewPassword;
+  }
+
+  toggleConfirmPasswordVisibility(): void {
+    this.showConfirmPassword = !this.showConfirmPassword;
+  }
 
   constructor(
     private router: Router,

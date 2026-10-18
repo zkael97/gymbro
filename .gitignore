@@ -40,3 +40,4 @@ ui-debug.log*
 Thumbs.db
 *.log
 
+.continue/
