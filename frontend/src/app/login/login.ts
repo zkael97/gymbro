@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -22,7 +22,8 @@ export class Login {
   constructor(
     private router: Router,
     private auth: AuthService,
-    private firebaseService: FirebaseService
+    private firebaseService: FirebaseService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   togglePasswordVisibility(): void {
@@ -40,6 +41,7 @@ export class Login {
       this.errorMessage = err.message || 'Login failed';
     } finally {
       this.isLoading = false;
+      this.cdr.markForCheck();
     }
   }
 }

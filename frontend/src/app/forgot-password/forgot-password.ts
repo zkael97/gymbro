@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -21,7 +21,8 @@ export class ForgotPassword {
 
   constructor(
     private router: Router,
-    private firebaseService: FirebaseService
+    private firebaseService: FirebaseService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   async onSubmit() {
@@ -43,12 +44,14 @@ export class ForgotPassword {
       const response = await this.firebaseService.forgotPassword(this.username, this.newPassword);
       this.loading = false;
       this.successMessage = response.message || 'Password reset successfully! Redirecting to login...';
+      this.cdr.markForCheck();
       setTimeout(() => {
         this.router.navigate(['/login']);
       }, 2000);
     } catch (err: any) {
       this.loading = false;
       this.errorMessage = err.message || 'Failed to reset password';
+      this.cdr.markForCheck();
     }
   }
 }

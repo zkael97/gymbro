@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectorRef, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -16,25 +16,40 @@ export class Register {
   password = '';
   confirmPassword = '';
   errorMessage = '';
+  isLoading = false;
 
   constructor(
     private router: Router,
-    private firebaseService: FirebaseService
+    private firebaseService: FirebaseService,
+    private cdr: ChangeDetectorRef,
+    private ngZone: NgZone
   ) {}
 
   async onSubmit() {
+    this.errorMessage = '';
+
     if (this.password !== this.confirmPassword) {
       this.errorMessage = 'Passwords do not match';
+      this.cdr.markForCheck();
       return;
     }
 
-    this.errorMessage = '';
+    this.isLoading = true;
     try {
       const response = await this.firebaseService.register(this.username, this.password);
-      alert(response.message);
-      this.router.navigate(['/login']);
+      this.ngZone.run(() => {
+        alert(response.message);
+        this.router.navigate(['/login']);
+      });
     } catch (err: any) {
-      this.errorMessage = err.message || 'Registration failed';
+      this.ngZone.run(() => {
+        this.errorMessage = err.message || 'Registration failed';
+      });
+    } finally {
+      this.ngZone.run(() => {
+        this.isLoading = false;
+        this.cdr.markForCheck();
+      });
     }
   }
 }

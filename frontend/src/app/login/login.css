@@ -112,6 +112,13 @@
   width: 100%;
 }
 
+.text-right {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  text-align: right;
+}
+
 .forgot-link {
   font-size: 13px;
   font-weight: 500;

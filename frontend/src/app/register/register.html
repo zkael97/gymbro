@@ -23,7 +23,10 @@
         <input type="password" id="confirmPassword" name="confirmPassword" [(ngModel)]="confirmPassword" autocapitalize="none" autocorrect="off" spellcheck="false" required>
       </div>
 
-      <button type="submit" class="register-btn">Register</button>
+      <button type="submit" class="register-btn" [disabled]="isLoading">
+        <span *ngIf="!isLoading">Register</span>
+        <span *ngIf="isLoading">Registering...</span>
+      </button>
     </form>
     
     <div class="footer-link">

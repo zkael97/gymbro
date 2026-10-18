@@ -8,3 +8,7 @@ body, html {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: #ffffff;
 }
+
+.text-right {
+  text-align: right;
+}

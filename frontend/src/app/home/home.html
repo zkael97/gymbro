@@ -63,14 +63,14 @@
       <!-- Dashboard cards placeholder -->
       <div class="stats-grid" *ngIf="activeMenu() === 'dashboard'">
         <div class="stat-card">
-          <div class="stat-icon">🏋️</div>
-          <div class="stat-label">Total Workouts</div>
-          <div class="stat-value">{{ workoutLogs().length }}</div>
+          <div class="stat-icon">📅</div>
+          <div class="stat-label">Daily Workout</div>
+          <div class="stat-value">{{ groupedWorkoutLogs.length }} <span class="unit-text">Hari</span></div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">🔥</div>
-          <div class="stat-label">Total Days Tracked</div>
-          <div class="stat-value">{{ groupedWorkoutLogs.length }}</div>
+          <div class="stat-icon">🏋️</div>
+          <div class="stat-label">Total Logs</div>
+          <div class="stat-value">{{ workoutLogs().length }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon">⚡</div>
