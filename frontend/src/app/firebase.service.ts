@@ -13,7 +13,8 @@ import {
   where,
   orderBy,
   serverTimestamp,
-  Timestamp
+  Timestamp,
+  deleteDoc
 } from 'firebase/firestore';
 import { environment } from '../environments/environment';
 
@@ -188,16 +189,25 @@ export class FirebaseService {
     };
   }
 
+  async deleteGymMove(moveId: string): Promise<void> {
+    if (!moveId) {
+      throw new Error('Move ID is required to delete a move');
+    }
+    const moveDocRef = doc(this.db, 'gym_moves', moveId);
+    await deleteDoc(moveDocRef);
+  }
+
   // --- WORKOUT LOGS METHODS ---
 
   async getWorkoutLogs(username?: string): Promise<WorkoutLogItem[]> {
-    const logsRef = collection(this.db, 'workout_logs');
     const cleanUser = username ? username.trim().toLowerCase() : '';
-
-    let q = query(logsRef, orderBy('date', 'desc'));
-    if (cleanUser) {
-      q = query(logsRef, where('username', '==', cleanUser), orderBy('date', 'desc'));
+    if (!cleanUser) {
+      return [];
     }
+
+    const logsRef = collection(this.db, 'workout_logs');
+    // Query by username without composite orderBy to prevent Firestore missing index precondition error
+    const q = query(logsRef, where('username', '==', cleanUser));
 
     const snap = await getDocs(q);
     const results: WorkoutLogItem[] = [];
@@ -218,6 +228,13 @@ export class FirebaseService {
         date: data['date'] || '',
         createdDate
       });
+    });
+
+    // Sort by date descending, then createdDate descending
+    results.sort((a, b) => {
+      const dateCmp = (b.date || '').localeCompare(a.date || '');
+      if (dateCmp !== 0) return dateCmp;
+      return (b.createdDate || '').localeCompare(a.createdDate || '');
     });
 
     return results;

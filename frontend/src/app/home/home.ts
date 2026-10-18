@@ -187,11 +187,16 @@ export class Home implements OnInit {
     const selectedMove = this.gymMoves().find((m) => m.id === this.logMoveId);
     const moveTitle = selectedMove ? selectedMove.title : 'Exercise';
 
+    if (!this.username) {
+      this.addLogError = 'Sesi tidak valid, silakan login ulang.';
+      return;
+    }
+
     this.isSubmittingLog.set(true);
 
     try {
       const newLog = await this.firebaseService.addWorkoutLog({
-        username: this.username || 'user',
+        username: this.username,
         moveId: this.logMoveId,
         moveTitle,
         weight: this.logWeight || 0,
@@ -295,6 +300,38 @@ export class Home implements OnInit {
       this.isSubmittingMove.set(false);
       this.showAddModal.set(false);
       this.triggerAlert('error', err?.message || 'Gagal menyimpan gerakan ke server.');
+    }
+  }
+
+  // Track which move ID is currently being deleted
+  deletingMoveId = signal<string | null>(null);
+
+  async deleteMove(move: GymMoveItem, event?: Event): Promise<void> {
+    if (event) {
+      event.stopPropagation();
+    }
+    if (!move.id) {
+      this.triggerAlert('error', 'ID gerakan tidak valid.');
+      return;
+    }
+
+    const confirmDelete = window.confirm(`Apakah Anda yakin ingin menghapus gerakan "${move.title}"?`);
+    if (!confirmDelete) {
+      return;
+    }
+
+    const targetId = move.id;
+    this.deletingMoveId.set(targetId);
+
+    try {
+      await this.firebaseService.deleteGymMove(targetId);
+      // Only remove the move with the exact unique document ID so identical moves remain untouched
+      this.gymMoves.update((list) => list.filter((item) => item.id !== targetId));
+      this.triggerAlert('success', `Gerakan "${move.title}" berhasil dihapus!`);
+    } catch (err: any) {
+      this.triggerAlert('error', err?.message || 'Gagal menghapus gerakan.');
+    } finally {
+      this.deletingMoveId.set(null);
     }
   }
 
