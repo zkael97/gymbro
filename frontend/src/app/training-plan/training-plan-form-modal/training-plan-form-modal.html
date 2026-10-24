@@ -1,0 +1,145 @@
+<div class="modal-backdrop" (click)="onClose()">
+  <div class="modal-card plan-modal-card" (click)="$event.stopPropagation()">
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">{{ initialPlan ? 'Edit Training Plan' : 'Create Training Plan' }}</h3>
+        <p class="modal-subtitle">Customize routine days, exercises, target reps, and weights.</p>
+      </div>
+      <button type="button" class="close-btn" (click)="onClose()" aria-label="Close modal">✕</button>
+    </div>
+
+    <!-- Form Content -->
+    <form [formGroup]="planForm" (ngSubmit)="onSubmit()" class="plan-form">
+      <div class="modal-body-scroll">
+        <!-- Plan Meta Details -->
+        <div class="meta-section">
+          <div class="input-group">
+            <label for="planTitle">Plan Name <span class="required-mark">*</span></label>
+            <input
+              type="text"
+              id="planTitle"
+              formControlName="title"
+              placeholder="e.g. 6-Day Push Pull Legs (Hypertrophy)"
+              [class.input-error]="planForm.get('title')?.invalid && planForm.get('title')?.touched"
+            />
+            <small class="error-text" *ngIf="planForm.get('title')?.invalid && planForm.get('title')?.touched">
+              Title is required (min 3 characters).
+            </small>
+          </div>
+
+          <div class="input-group">
+            <label for="planDescription">Description / Goal (Optional)</label>
+            <input
+              type="text"
+              id="planDescription"
+              formControlName="description"
+              placeholder="e.g. Focused on hypertrophy with progressive overload"
+            />
+          </div>
+
+          <div class="checkbox-group">
+            <label class="toggle-label">
+              <input type="checkbox" formControlName="isActive" />
+              <span class="toggle-text">Set as Active Training Plan</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Routine Configuration -->
+        <div class="day-editor-container" [formGroup]="getDayFormGroup(selectedDayIndex())">
+          <div class="day-editor-header">
+            <div class="day-title-input-wrap">
+              <span class="day-icon">📅</span>
+              <input
+                type="text"
+                formControlName="title"
+                class="day-title-input"
+                placeholder="Day Routine Title (e.g. Upper Body Power)"
+              />
+            </div>
+
+            <button
+              type="button"
+              class="rest-toggle-btn"
+              [class.rest-active]="getDayFormGroup(selectedDayIndex()).get('isRestDay')?.value"
+              (click)="toggleRestDay(selectedDayIndex())"
+            >
+              {{ getDayFormGroup(selectedDayIndex()).get('isRestDay')?.value ? '🛌 Marked as Rest Day' : '💪 Active Workout Day' }}
+            </button>
+          </div>
+
+          <!-- Rest Day State -->
+          @if (getDayFormGroup(selectedDayIndex()).get('isRestDay')?.value) {
+            <div class="rest-day-notice">
+              <span class="rest-icon">☕</span>
+              <h4>Rest & Active Recovery</h4>
+              <p>Take this day to recover muscles, hydrate, and stretch.</p>
+              <div class="input-group">
+                <input
+                  type="text"
+                  formControlName="notes"
+                  placeholder="Optional recovery note (e.g. 20 min light walk & foam rolling)"
+                />
+              </div>
+            </div>
+          } @else {
+            <!-- Active Workout Day Exercises List -->
+            <div class="exercises-section">
+              <!-- My Moves Library Multi-Checkbox Selection -->
+              @if (gymMoves.length > 0) {
+                <div class="moves-picker-box">
+                  <div class="moves-picker-header">
+                    <div>
+                      <span class="moves-picker-title">🏋️ Select from "My Moves" Library</span>
+                      <span class="moves-picker-sub">Check as many moves as you want to include in this day</span>
+                    </div>
+                    <div class="moves-picker-actions">
+                      <button type="button" class="btn-xs-link" (click)="selectAllMoves(selectedDayIndex())">Select All</button>
+                      <span class="divider">•</span>
+                      <button type="button" class="btn-xs-link" (click)="clearAllMoves(selectedDayIndex())">Clear</button>
+                    </div>
+                  </div>
+                  <div class="moves-checkbox-grid">
+                    @for (move of gymMoves; track move.id) {
+                      <label class="move-checkbox-card" [class.selected]="isMoveSelectedInDay(selectedDayIndex(), move.id)">
+                        <input
+                          type="checkbox"
+                          [checked]="isMoveSelectedInDay(selectedDayIndex(), move.id)"
+                          (change)="toggleMoveSelection(selectedDayIndex(), move, $event)"
+                        />
+                        <div class="move-checkbox-info">
+                          <span class="move-check-title">
+                            <span class="move-type-icon">{{ move.type === 'lower' ? '🦵' : '💪' }}</span>
+                            {{ move.title }}
+                          </span>
+                          <span class="move-check-badge">{{ move.category }}</span>
+                        </div>
+                      </label>
+                    }
+                  </div>
+                </div>
+              }
+
+
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="modal-actions">
+        <button type="button" class="cancel-btn" (click)="onClose()" [disabled]="isSubmitting">
+          Cancel
+        </button>
+        <button
+          type="submit"
+          class="save-btn"
+          [disabled]="isSubmitting || planForm.invalid"
+        >
+          {{ isSubmitting ? 'Saving Plan...' : (initialPlan ? 'Update Plan' : 'Save Plan') }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

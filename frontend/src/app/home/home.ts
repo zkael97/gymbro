@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../auth.service';
 import { FirebaseService, GymMoveItem, WorkoutLogItem } from '../firebase.service';
+import { TrainingPlanList } from '../training-plan/training-plan-list';
 
 export interface DateGroupedLogs {
   date: string;
@@ -14,13 +15,13 @@ export interface DateGroupedLogs {
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, TrainingPlanList],
   templateUrl: './home.html',
   styleUrl: './home.css'
 })
 export class Home implements OnInit {
   username: string | null = '';
-  activeMenu = signal<string>('tracker');
+  activeMenu = signal<string>('dashboard');
   isMobileSidebarOpen = signal<boolean>(false);
 
   // Gym Move State as Signals for instant synchronous UI re-rendering
@@ -39,6 +40,7 @@ export class Home implements OnInit {
   workoutLogs = signal<WorkoutLogItem[]>([]);
   showAddLogModal = signal<boolean>(false);
   isSubmittingLog = signal<boolean>(false);
+  deletingLogId = signal<string | null>(null);
   addLogError = '';
 
   // Form inputs (Add Move to Tracker)
@@ -74,6 +76,29 @@ export class Home implements OnInit {
 
   readonly upperCategories = ['Chest', 'Back', 'Shoulders', 'Arms', 'Others'];
   readonly lowerCategories = ['Quadriceps', 'Hamstring', 'Glutes', 'Calves', 'Others'];
+
+  // Helper untuk menentukan tipe gerakan (upper/lower) dari gymMoves
+  getMoveType(moveId?: string, moveTitle?: string): 'upper' | 'lower' {
+    if (moveId) {
+      const match = this.gymMoves().find((m) => m.id === moveId);
+      if (match?.type) {
+        return match.type.toLowerCase() === 'lower' ? 'lower' : 'upper';
+      }
+    }
+    if (moveTitle) {
+      const match = this.gymMoves().find((m) => m.title.trim().toLowerCase() === moveTitle.trim().toLowerCase());
+      if (match?.type) {
+        return match.type.toLowerCase() === 'lower' ? 'lower' : 'upper';
+      }
+    }
+    return 'upper';
+  }
+
+  // Icon gerakan: kaki (🦵) untuk lower, badan atas / otot dada-lengan (💪 / 🏋️) untuk upper
+  getMoveIcon(moveId?: string, moveTitle?: string): string {
+    const type = this.getMoveType(moveId, moveTitle);
+    return type === 'lower' ? '🦵' : '💪';
+  }
 
   constructor(
     private router: Router,
@@ -148,6 +173,36 @@ export class Home implements OnInit {
     });
   }
 
+  // Hitung jumlah terpanjang hari berturut-turut (max streak) latihan
+  get longestGymStreak(): number {
+    const logs = this.workoutLogs();
+    if (!logs.length) return 0;
+
+    // Kumpulkan tanggal unik dan urutkan secara kronologis (ascending)
+    const uniqueDates = Array.from(new Set(logs.map(log => log.date))).filter(Boolean).sort();
+    if (!uniqueDates.length) return 0;
+
+    let maxStreak = 1;
+    let currentStreak = 1;
+
+    for (let i = 1; i < uniqueDates.length; i++) {
+      const prevDate = new Date(uniqueDates[i - 1] + 'T00:00:00');
+      const currDate = new Date(uniqueDates[i] + 'T00:00:00');
+      const diffDays = Math.round((currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 1) {
+        currentStreak++;
+        if (currentStreak > maxStreak) {
+          maxStreak = currentStreak;
+        }
+      } else if (diffDays > 1) {
+        currentStreak = 1;
+      }
+    }
+
+    return maxStreak;
+  }
+
   openAddLogModal(): void {
     const moves = this.gymMoves();
     this.logMoveId = moves.length > 0 ? (moves[0].id || '') : '';
@@ -213,6 +268,34 @@ export class Home implements OnInit {
       this.isSubmittingLog.set(false);
       this.showAddLogModal.set(false);
       this.triggerAlert('error', err?.message || 'Gagal menyimpan catatan latihan.');
+    }
+  }
+
+  async deleteWorkoutLog(log: WorkoutLogItem, event?: Event): Promise<void> {
+    if (event) {
+      event.stopPropagation();
+    }
+    if (!log.id) {
+      this.triggerAlert('error', 'ID catatan latihan tidak valid.');
+      return;
+    }
+
+    const confirmDelete = window.confirm(`Apakah Anda yakin ingin menghapus catatan latihan "${log.moveTitle}"?`);
+    if (!confirmDelete) {
+      return;
+    }
+
+    const targetId = log.id;
+    this.deletingLogId.set(targetId);
+
+    try {
+      await this.firebaseService.deleteWorkoutLog(targetId);
+      this.workoutLogs.update((list) => list.filter((item) => item.id !== targetId));
+      this.triggerAlert('success', `Catatan latihan "${log.moveTitle}" berhasil dihapus!`);
+    } catch (err: any) {
+      this.triggerAlert('error', err?.message || 'Gagal menghapus catatan latihan.');
+    } finally {
+      this.deletingLogId.set(null);
     }
   }
 

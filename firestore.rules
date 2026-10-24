@@ -41,5 +41,15 @@ service cloud.firestore {
 
       allow update, delete: if true;
     }
+
+    // TRAINING PLANS COLLECTION
+    match /training_plans/{planId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.username is string
+                            && request.resource.data.username.size() > 0
+                            && request.resource.data.title is string
+                            && request.resource.data.title.size() > 0;
+      allow delete: if true;
+    }
   }
 }

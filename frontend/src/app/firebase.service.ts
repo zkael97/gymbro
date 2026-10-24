@@ -262,4 +262,12 @@ export class FirebaseService {
       createdDate: new Date().toISOString()
     };
   }
+
+  async deleteWorkoutLog(logId: string): Promise<void> {
+    if (!logId) {
+      throw new Error('Log ID is required to delete a workout log');
+    }
+    const logDocRef = doc(this.db, 'workout_logs', logId);
+    await deleteDoc(logDocRef);
+  }
 }

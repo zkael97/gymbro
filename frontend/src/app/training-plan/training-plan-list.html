@@ -1,0 +1,134 @@
+<div class="plans-container">
+  <!-- Plans Header -->
+  <div class="page-header">
+    <div>
+      <h2 class="page-title">My Training Plan</h2>
+      <p class="page-subtitle">Design your split, set target reps & weights, and sync workouts in real time.</p>
+    </div>
+    @if (plans().length > 0) {
+      <button type="button" class="action-btn" (click)="openCreateModal()">
+        + Create Plan
+      </button>
+    }
+  </div>
+
+  <!-- Loading State -->
+  @if (isLoading()) {
+    <div class="loading-state">
+      <div class="spinner"></div>
+      <p>Syncing training plans with Firestore...</p>
+    </div>
+  }
+
+  <!-- Empty State -->
+  @if (!isLoading() && plans().length === 0) {
+    <div class="empty-state">
+      <div class="empty-icon">📋</div>
+      <h3>No Training Plans Yet</h3>
+      <p class="empty-text">Create your custom workout split (PPL, Upper/Lower, Bro Split) and track your planned sets.</p>
+      <button type="button" class="create-first-btn" (click)="openCreateModal()">
+        + Create Your First Plan
+      </button>
+    </div>
+  }
+
+  <!-- Training Plans Grid -->
+  @if (!isLoading() && plans().length > 0) {
+    <div class="plans-grid">
+      @for (plan of plans(); track plan.id) {
+        <div
+          class="plan-card"
+          [class.active-plan-card]="plan.isActive"
+        >
+            <!-- Card Top: Tags & Action Buttons -->
+            <div class="plan-card-top">
+              <div class="plan-tags">
+                <span class="type-pill plan-status-pill" [class.active-plan-pill]="plan.isActive">
+                  {{ plan.isActive ? '⚡ Active' : 'Draft' }}
+                </span>
+                <span class="category-pill">
+                  {{ countActiveDays(plan) }} Days / Week
+                </span>
+              </div>
+
+              <div class="plan-actions" (click)="$event.stopPropagation()">
+                @if (!plan.isActive) {
+                  <button
+                    type="button"
+                    class="plan-activate-btn"
+                    title="Set as Active Plan"
+                    [disabled]="activatingPlanId() === plan.id"
+                    (click)="setAsActive(plan, $event)"
+                  >
+                    <span *ngIf="activatingPlanId() !== plan.id">Activate</span>
+                    <span *ngIf="activatingPlanId() === plan.id" class="spinner-small-blue"></span>
+                  </button>
+                }
+                <button
+                  type="button"
+                  class="plan-icon-btn edit-plan-btn"
+                  title="Edit Plan"
+                  (click)="openEditModal(plan, $event)"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="plan-icon-btn delete-plan-btn"
+                  title="Hapus Plan"
+                  [disabled]="deletingPlanId() === plan.id"
+                  (click)="deletePlan(plan, $event)"
+                >
+                  <svg *ngIf="deletingPlanId() !== plan.id" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                  </svg>
+                  <span *ngIf="deletingPlanId() === plan.id" class="spinner-small"></span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Card Title & Description matching My Move styling -->
+            <div class="plan-title">{{ plan.title }}</div>
+            <p class="plan-desc" *ngIf="plan.description">{{ plan.description }}</p>
+
+            <!-- Days Preview Chips -->
+            <div class="days-preview-row">
+              @for (day of plan.days; track day.dayOfWeek) {
+                <div
+                  class="day-preview-chip"
+                  [class.rest-day-chip]="day.isRestDay"
+                  [title]="day.title + (day.isRestDay ? ' (Rest)' : '')"
+                >
+                  <span class="chip-day">{{ day.dayOfWeek | slice:0:3 | uppercase }}</span>
+                  <span class="chip-count" *ngIf="!day.isRestDay">{{ day.exercises?.length || 0 }}</span>
+                  <span class="chip-rest" *ngIf="day.isRestDay">Zzz</span>
+                </div>
+              }
+            </div>
+
+            <!-- Card Meta Footer -->
+            <div class="plan-meta">
+              <span>Total: <strong>{{ countExercises(plan) }}</strong> exercises</span>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+  <!-- Reactive Form Modal for Create / Edit -->
+  @if (showFormModal()) {
+    <app-training-plan-form-modal
+      [initialPlan]="selectedPlanForEdit()"
+      [gymMoves]="gymMoves()"
+      [isSubmitting]="isSubmitting()"
+      (save)="handleSavePlan($event)"
+      (cancel)="closeFormModal()"
+    ></app-training-plan-form-modal>
+  }
+</div>
